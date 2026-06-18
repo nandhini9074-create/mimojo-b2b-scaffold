@@ -1,0 +1,142 @@
+{
+  "name": "mimojo-b2b-scaffold-service",
+  "version": "0.0.1",
+  "description": "Store the consumer related data",
+  "author": "Haresh",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "nest build",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "DISABLE_ESLINT_PLUGIN=true node dist/src/main",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "prepare": "husky"
+  },
+  "dependencies": {
+    "@langchain/core": "^0.2.0",
+    "@langchain/langgraph": "^0.0.25",
+    "@langchain/openai": "^0.2.0",
+    "@nestjs/axios": "^4.0.1",
+    "@nestjs/common": "^11.1.19",
+    "@nestjs/config": "^4.0.4",
+    "@nestjs/core": "^11.1.19",
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/microservices": "^11.1.19",
+    "@nestjs/platform-express": "^11.1.19",
+    "@nestjs/schedule": "^5.0.1",
+    "@nestjs/sequelize": "^11.0.1",
+    "@nestjs/swagger": "^11.3.0",
+    "@octokit/rest": "^20.0.0",
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/auto-instrumentations-node": "^0.67.2",
+    "@opentelemetry/exporter-logs-otlp-grpc": "^0.208.0",
+    "@opentelemetry/exporter-metrics-otlp-grpc": "^0.208.0",
+    "@opentelemetry/exporter-trace-otlp-grpc": "^0.208.0",
+    "@opentelemetry/instrumentation-pino": "^0.55.0",
+    "@opentelemetry/resources": "^2.6.1",
+    "@opentelemetry/sdk-node": "^0.208.0",
+    "@opentelemetry/semantic-conventions": "^1.40.0",
+    "axios": "^1.15.0",
+    "bcrypt": "^6.0.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "fast-csv": "^5.0.5",
+    "kafkajs": "^2.2.4",
+    "langsmith": "^0.6.0",
+    "moment": "^2.30.1",
+    "nestjs-pino": "^4.6.1",
+    "pg": "^8.20.0",
+    "pino-http": "^10.5.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "sequelize": "^6.37.8",
+    "sequelize-cli": "^6.6.5",
+    "sequelize-typescript": "^2.1.6",
+    "swagger-ui-express": "^5.0.1",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
+    "@nestjs/cli": "^11.0.21",
+    "@nestjs/testing": "^11.1.19",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^24.10.13",
+    "@types/supertest": "^6.0.3",
+    "@typescript-eslint/eslint-plugin": "^8.58.2",
+    "@typescript-eslint/parser": "^8.58.2",
+    "conventional-changelog-atom": "^5.1.0",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "husky": "^9.1.7",
+    "jest": "^29.7.0",
+    "prettier": "^3.8.3",
+    "supertest": "^7.2.2",
+    "ts-jest": "^29.4.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.58.2"
+  },
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=10"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "coverageDirectory": "./coverage",
+    "testPathIgnorePatterns": [
+      "<rootDir>/dist/"
+    ],
+    "testEnvironment": "node",
+    "reporters": [
+      "default"
+    ],
+    "collectCoverageFrom": [
+      "**/*.service.ts",
+      "**/*.controller.ts",
+      "**/proxies/services/*.proxy.ts"
+    ],
+    "coveragePathIgnorePatterns": [
+      "http/",
+      "kafka/",
+      ".*\\.dto\\.ts",
+      ".*\\.entity\\.ts",
+      "main.ts",
+      "app.module.ts",
+      "logger/"
+    ],
+    "coverageReporters": [
+      "json-summary",
+      "text",
+      "lcov"
+    ],
+    "moduleNameMapper": {
+      "^config/(.*)$": "<rootDir>/config/$1",
+      "^src/(.*)$": "<rootDir>/src/$1"
+    }
+  },
+  "lint-staged": {
+    "*.ts": [
+      "prettier --write"
+    ]
+  }
+}
