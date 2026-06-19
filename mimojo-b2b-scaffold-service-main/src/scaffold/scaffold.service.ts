@@ -186,6 +186,7 @@ export class ScaffoldService {
         case 'functions':
           state.functions_list = undefined;
           state.github_refs = undefined;
+          state.repo_tree = undefined;
           break;
         case 'diagrams':
           state.diagrams = undefined;
@@ -245,6 +246,7 @@ export class ScaffoldService {
       features: state.features,
       functions_list: state.functions_list,
       github_refs: state.github_refs,
+      repo_tree: state.repo_tree,
       diagrams: state.diagrams,
       api_docs: state.api_docs,
       project_docs: state.project_docs,
@@ -273,8 +275,8 @@ export class ScaffoldService {
   private async runStageInner(state: PipelineState, stage: ScaffoldStage, feedback?: string) {
     switch (stage) {
       case 'functions': {
-        state.functions_list = await extractFunctions(state, feedback);
         state.github_refs = await searchGithubRefs(state);
+        state.functions_list = await extractFunctions(state, feedback);
         break;
       }
       case 'diagrams': {

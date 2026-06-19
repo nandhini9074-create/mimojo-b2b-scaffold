@@ -305,17 +305,67 @@ async function api(path, method='GET', body) {
 function addFeatureRow(name='', refs=[]) {
   const el = document.createElement('div');
   el.className = 'feature-row';
+
+  // Reverse-parse: extract repoUrl and paths from existing refs
+  let repoUrl = '';
+  let paths = [];
+  if (refs.length) {
+    try {
+      const u = new URL(refs[0]);
+      const parts = u.pathname.split('/').filter(Boolean);
+      if (parts.length >= 2) {
+        repoUrl = `https://github.com/${parts[0]}/${parts[1]}`;
+      }
+      paths = refs.map(r => {
+        try {
+          const ru = new URL(r);
+          return ru.pathname.split('/').filter(Boolean).slice(4).join('/');
+        } catch { return r; }
+      });
+    } catch {
+      paths = refs;
+    }
+  }
+
   el.innerHTML = `
     <div class="row-header">
       <input class="f-name" placeholder="feature name (e.g. create order)" />
       <button class="secondary remove" style="width:auto;font-size:11px;padding:2px 8px">✕</button>
     </div>
-    <label>Reference GitHub URLs (one per line, optional)</label>
-    <textarea class="f-refs" placeholder="https://github.com/acme/order-svc/blob/main/src/order/order.controller.ts"></textarea>
+    <label>Reference GitHub Repo URL (public repos only, optional)</label>
+    <input class="f-repo-url" placeholder="https://github.com/owner/repo-name" />
+    <label style="margin-top:6px">File paths from this repo</label>
+    <div class="f-paths-list"></div>
+    <button class="secondary f-add-path" style="width:auto;font-size:11px;padding:4px 10px;margin-top:4px">+ Add file path</button>
   `;
+
   el.querySelector('.f-name').value = name;
-  el.querySelector('.f-refs').value = refs.join('\n');
+  el.querySelector('.f-repo-url').value = repoUrl;
   el.querySelector('.remove').onclick = () => el.remove();
+
+  const pathsList = el.querySelector('.f-paths-list');
+
+  function addPathRow(pathValue='') {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:4px;';
+    row.innerHTML = `
+      <input class="f-path" style="flex:1;font-family:monospace;font-size:11px" placeholder="src/module/controllers/example.controller.ts" />
+      <button class="secondary f-remove-path" style="width:auto;font-size:11px;padding:2px 8px;flex-shrink:0">✕</button>
+    `;
+    row.querySelector('.f-path').value = pathValue;
+    row.querySelector('.f-remove-path').onclick = () => row.remove();
+    pathsList.appendChild(row);
+  }
+
+  // Populate existing paths or add one empty row
+  if (paths.length) {
+    paths.forEach(p => addPathRow(p));
+  } else {
+    addPathRow();
+  }
+
+  el.querySelector('.f-add-path').onclick = () => addPathRow();
+
   document.getElementById('featureList').appendChild(el);
 }
 
@@ -323,7 +373,21 @@ function readFeatures() {
   const rows = [...document.querySelectorAll('.feature-row')];
   return rows.map(r => {
     const name = r.querySelector('.f-name').value.trim();
-    const refs = r.querySelector('.f-refs').value.split('\n').map(s => s.trim()).filter(Boolean);
+    const repoUrl = r.querySelector('.f-repo-url').value.trim().replace(/\/+$/, '');
+    const pathInputs = [...r.querySelectorAll('.f-path')];
+    const filePaths = pathInputs.map(p => p.value.trim()).filter(Boolean);
+
+    // Construct full GitHub file URLs from repo URL + paths
+    let refs = [];
+    if (repoUrl && filePaths.length) {
+      refs = filePaths.map(fp => {
+        // If path already looks like a full URL, use as-is
+        if (fp.startsWith('http')) return fp;
+        // Otherwise construct: repoUrl/blob/main/path
+        return `${repoUrl}/blob/main/${fp.replace(/^\/+/, '')}`;
+      });
+    }
+
     return refs.length ? { name, refs } : { name };
   }).filter(f => f.name);
 }

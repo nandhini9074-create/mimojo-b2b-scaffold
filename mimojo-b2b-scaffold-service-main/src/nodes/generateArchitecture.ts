@@ -197,6 +197,8 @@ ${JSON.stringify(state.functions_list, null, 2)}
 Existing GitHub references (reuse component names / patterns where they fit):
 ${JSON.stringify(state.github_refs ?? [], null, 2)}
 
+CRITICAL INSTRUCTION: You MUST strictly mirror the exact structural components, service layers, and data models found in the GitHub references.
+
 ${feedback ? `Reviewer feedback to incorporate (highest priority):\n${feedback}` : ""}
 ${renderRefinements(state)}
 

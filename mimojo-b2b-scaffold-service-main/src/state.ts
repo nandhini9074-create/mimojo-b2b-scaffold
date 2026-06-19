@@ -28,6 +28,7 @@ export interface PipelineState {
   // Stage outputs
   functions_list?: any;
   github_refs?: GithubRef[];
+  repo_tree?: string;  // full directory tree of the reference repo
 
   diagrams?: string;       // mermaid markdown
   api_docs?: string;       // OpenAPI yaml/json

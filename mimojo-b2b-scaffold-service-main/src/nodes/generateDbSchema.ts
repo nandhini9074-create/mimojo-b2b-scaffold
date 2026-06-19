@@ -9,6 +9,11 @@ Generate a complete PostgreSQL DDL schema (CREATE TABLE / INDEX / FK statements 
 Functions:
 ${JSON.stringify(state.functions_list, null, 2)}
 
+GitHub references to mirror structure from:
+${JSON.stringify(state.github_refs ?? [], null, 2)}
+
+CRITICAL INSTRUCTION: You MUST extract and use the exact table names, column names, constraints, and data types found in the provided GitHub references (such as Sequelize models or DTOs). Do not invent your own fields if they exist in the reference.
+
 ${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
 ${renderRefinements(state)}
 
