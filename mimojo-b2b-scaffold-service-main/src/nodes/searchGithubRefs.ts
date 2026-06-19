@@ -1,5 +1,7 @@
 import { Octokit } from "@octokit/rest";
 import axios from "axios";
+import * as fs from "fs";
+import * as path from "path";
 import { GithubRef, PipelineState } from "../state";
 
 const MAX_SNIPPET_SIZE = 50_000; // 50KB cap to prevent blowing AI context
@@ -73,6 +75,14 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
     state.repo_tree = await fetchRepoTree(treeOwner, treeRepo, treeBranch);
   }
 
+  try {
+    const debugContent = refs.map(r => `/* ===== SOURCE: ${r.url} ===== */\n${r.snippet}`).join('\n\n');
+    const debugPath = path.join(process.cwd(), 'github_snippets_debug.txt');
+    fs.writeFileSync(debugPath, debugContent, 'utf-8');
+  } catch (err) {
+    console.warn('[searchGithubRefs] Failed to write debug snippet file:', (err as Error).message);
+  }
+
   return refs;
 }
 
@@ -129,18 +139,22 @@ async function fetchRawContent(
   parsed: ReturnType<typeof parseGithubUrl>,
 ): Promise<string | undefined> {
   if (!parsed.owner || !parsed.repoName || !parsed.path) return undefined;
-  const rawUrl = `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repoName}/${parsed.branch}/${parsed.path}`;
-  
-  const headers: Record<string, string> = {};
+  // Use the official GitHub API to fetch raw contents, which handles fine-grained PATs properly
+  const apiUrl = `https://api.github.com/repos/${parsed.owner}/${parsed.repoName}/contents/${parsed.path}`;
+
+  const headers: Record<string, string> = {
+    'Accept': 'application/vnd.github.v3.raw'
+  };
   if (process.env.GITHUB_TOKEN) {
     headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
   }
 
   try {
-    const { data } = await axios.get(rawUrl, {
+    const { data } = await axios.get(apiUrl, {
       timeout: 10_000,
       responseType: 'text',
       headers,
+      params: { ref: parsed.branch } // Ensure we get from the correct branch
     });
     let content = typeof data === 'string' ? data : JSON.stringify(data);
     if (content.length > MAX_SNIPPET_SIZE) {
@@ -148,7 +162,7 @@ async function fetchRawContent(
     }
     return content;
   } catch (err) {
-    console.warn(`[searchGithubRefs] Failed to fetch raw content for ${rawUrl}:`, (err as Error).message);
+    console.warn(`[searchGithubRefs] Failed to fetch raw content for ${apiUrl}:`, (err as Error).message);
     return undefined;
   }
 }

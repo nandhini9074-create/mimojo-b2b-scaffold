@@ -10,7 +10,12 @@ export async function generateModuleCode(
   const codeFiles: Record<string, string> = {};
   const hasRefs = (state.github_refs ?? []).some(r => r.snippet);
 
+  if (state.github_refs?.length && !hasRefs) {
+    throw new Error('Failed to download reference snippets from GitHub! Please check your GITHUB_TOKEN and ensure the repository/URL is accessible.');
+  }
+
   for (const file of files) {
+    console.log(`[generateModuleCode] Generating code for ${file}... please wait...`);
     // Find the most relevant reference snippet for this file type
     const refSnippets = (state.github_refs ?? [])
       .filter(r => r.snippet)
@@ -40,8 +45,12 @@ ABSOLUTE RULES — VIOLATION IS UNACCEPTABLE:
 4. If the reference uses BaseResponse<any> as the return type, you MUST use BaseResponse<any>. Do NOT change it to a raw entity type.
 5. If the reference uses specific import paths like 'src/common/dtos/base-response', replicate those exact import paths.
 6. Copy the EXACT class names, method names, parameter names, and decorator configurations from the reference.
-7. The ONLY things you should change are domain-specific names (e.g., 'enrollment' -> your new module name) IF the project name implies a different domain. Otherwise keep everything identical.
-8. Do NOT add any methods, routes, fields, or imports that do not exist in the reference code.
+7. Copy the EXACT fields, properties, columns, data types, and validations from the reference DTOs, Entities, and Interfaces. Do NOT add, remove, or alter any fields.
+8. The ONLY things you should change are domain-specific names (e.g., 'enrollment' -> your new module name) IF the project name implies a different domain. Keep all field properties identical.
+9. Do NOT add any methods, routes, fields, or imports that do not exist in the reference code.
+10. Copy the EXACT IMPLEMENTATION LOGIC inside methods. Do NOT summarize or invent new logic. You must replicate the exact loops, conditionals, object creations, and database interactions as they appear in the reference code. 
+11. If the reference code iterates over an array like 'cardDetails', you must do exactly the same. Do not simplify the code!
+12. Do NOT invent new models (e.g., ActivityLog, FileStatus) or variables that are not present in the reference code snippet.
 
 ${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
 ${renderRefinements(state)}

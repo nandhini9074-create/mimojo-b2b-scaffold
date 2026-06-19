@@ -6,6 +6,10 @@ import { renderRefinements } from "./refinements";
 export async function extractFunctions(state: PipelineState, feedback?: string) {
   const hasRefs = (state.github_refs ?? []).some(r => r.snippet);
 
+  if (state.github_refs?.length && !hasRefs) {
+    throw new Error('Failed to download reference snippets from GitHub! Please check your GITHUB_TOKEN and ensure the repository/URL is accessible.');
+  }
+
   const prompt = hasRefs
     ? `
 You are a senior backend architect.
@@ -29,7 +33,13 @@ Return ONLY JSON of the form:
     {
       "name": "<module name from the reference folder structure>",
       "functions": [
-        { "name": "<exact method name>", "description": "<what it does>", "inputs": ["<exact param: type>"], "outputs": ["<exact return type>"], "feature": "<feature name>" }
+        { 
+          "name": "<exact method name>", 
+          "description": "<what it does>", 
+          "inputs": ["<exact param: type with exact properties/fields>"], 
+          "outputs": ["<exact return type with exact properties/fields>"], 
+          "feature": "<feature name>" 
+        }
       ]
     }
   ]
