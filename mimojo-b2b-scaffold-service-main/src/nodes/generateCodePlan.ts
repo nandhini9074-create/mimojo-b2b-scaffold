@@ -22,6 +22,9 @@ CRITICAL INSTRUCTION:
 2. If the reference uses 'src/enrollment/controllers/', you must use 'src/<newModule>/controllers/', NOT 'src/modules/<newModule>/'.
 3. If the reference has 'src/common/dtos/', 'src/common/decorators/', etc., you MUST include those same common folders.
 4. Create ONLY the files that correspond to actual functions in the function list below. Do NOT add extra files.
+5. Check the "type" property of each function in the function list below:
+   - For functions of type "api", map them to API templates from the reference (e.g. controller, service, and DTOs like enroll.controller.ts/enroll.service.ts).
+   - For functions of type "file", map them to File Upload templates from the reference (e.g. file-upload.controller.ts/file-upload.service.ts, file.model.ts, file-status.dto.ts).
 
 Functions:
 ${JSON.stringify(state.functions_list, null, 2)}

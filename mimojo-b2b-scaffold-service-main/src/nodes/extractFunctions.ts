@@ -35,6 +35,7 @@ Return ONLY JSON of the form:
       "functions": [
         { 
           "name": "<exact method name>", 
+          "type": "<type of feature: api or file>",
           "description": "<what it does>", 
           "inputs": ["<exact param: type with exact properties/fields>"], 
           "outputs": ["<exact return type with exact properties/fields>"], 
@@ -46,7 +47,7 @@ Return ONLY JSON of the form:
 }
 
 Feature list (for context only — do NOT add functions beyond what exists in the reference code):
-${state.features.map((f, i) => `${i + 1}. ${f.name}`).join("\n")}
+${state.features.map((f, i) => `${i + 1}. ${f.name} (Type: ${f.type || 'api'})`).join("\n")}
 
 ${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
 ${renderRefinements(state)}
@@ -61,7 +62,7 @@ Given this feature list, return ONLY JSON of the form:
     {
       "name": "order",
       "functions": [
-        { "name": "createOrder", "description": "...", "inputs": [...], "outputs": [...], "feature": "create order" }
+        { "name": "createOrder", "type": "api", "description": "...", "inputs": [...], "outputs": [...], "feature": "create order" }
       ]
     }
   ]
@@ -71,7 +72,7 @@ Feature list:
 ${state.features
   .map(
     (f, i) =>
-      `${i + 1}. ${f.name}${f.refs?.length ? `\n   Reference implementations:\n   - ${f.refs.join('\n   - ')}` : ''}`,
+      `${i + 1}. ${f.name} (Type: ${f.type || 'api'})${f.refs?.length ? `\n   Reference implementations:\n   - ${f.refs.join('\n   - ')}` : ''}`,
   )
   .join("\n")}
 

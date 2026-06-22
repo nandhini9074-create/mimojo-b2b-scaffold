@@ -302,7 +302,7 @@ async function api(path, method='GET', body) {
 }
 
 // --------- Feature rows ---------
-function addFeatureRow(name='', refs=[]) {
+function addFeatureRow(name='', refs=[], type='api') {
   const el = document.createElement('div');
   el.className = 'feature-row';
 
@@ -332,6 +332,13 @@ function addFeatureRow(name='', refs=[]) {
       <input class="f-name" placeholder="feature name (e.g. create order)" />
       <button class="secondary remove" style="width:auto;font-size:11px;padding:2px 8px">✕</button>
     </div>
+    <div style="margin-top:6px;margin-bottom:6px">
+      <label>Feature Type</label>
+      <select class="f-type">
+        <option value="api">API</option>
+        <option value="file">File Upload / Batch</option>
+      </select>
+    </div>
     <label>Reference GitHub Repo URL (public repos only, optional)</label>
     <input class="f-repo-url" placeholder="https://github.com/owner/repo-name" />
     <label style="margin-top:6px">File paths from this repo</label>
@@ -340,6 +347,7 @@ function addFeatureRow(name='', refs=[]) {
   `;
 
   el.querySelector('.f-name').value = name;
+  el.querySelector('.f-type').value = type;
   el.querySelector('.f-repo-url').value = repoUrl;
   el.querySelector('.remove').onclick = () => el.remove();
 
@@ -373,6 +381,7 @@ function readFeatures() {
   const rows = [...document.querySelectorAll('.feature-row')];
   return rows.map(r => {
     const name = r.querySelector('.f-name').value.trim();
+    const type = r.querySelector('.f-type').value;
     const repoUrl = r.querySelector('.f-repo-url').value.trim().replace(/\/+$/, '');
     const pathInputs = [...r.querySelectorAll('.f-path')];
     const filePaths = pathInputs.map(p => p.value.trim()).filter(Boolean);
@@ -388,7 +397,7 @@ function readFeatures() {
       });
     }
 
-    return refs.length ? { name, refs } : { name };
+    return refs.length ? { name, type, refs } : { name, type };
   }).filter(f => f.name);
 }
 
@@ -1106,7 +1115,7 @@ async function loadSession(sessionId) {
     if (res.projectName) document.getElementById('projectName').value = res.projectName;
     if (Array.isArray(res.features)) {
       document.getElementById('featureList').innerHTML = '';
-      res.features.forEach(f => addFeatureRow(f.name || '', f.refs || []));
+      res.features.forEach(f => addFeatureRow(f.name || '', f.refs || [], f.type || 'api'));
     }
     toast(`Loaded session — current stage: ${res.stage}`);
     loadPastSessions(); // refresh the active highlight
@@ -1178,7 +1187,7 @@ function parseJsonPayload() {
   }
   // Normalize: allow features as plain strings too
   parsed.features = parsed.features.map(f =>
-    typeof f === 'string' ? { name: f } : { name: f.name, refs: f.refs }
+    typeof f === 'string' ? { name: f, type: 'api' } : { name: f.name, type: f.type || 'api', refs: f.refs }
   );
   return parsed;
 }
@@ -1186,7 +1195,7 @@ function parseJsonPayload() {
 function applyPayloadToForm(payload) {
   document.getElementById('projectName').value = payload.projectName;
   document.getElementById('featureList').innerHTML = '';
-  payload.features.forEach(f => addFeatureRow(f.name || '', f.refs || []));
+  payload.features.forEach(f => addFeatureRow(f.name || '', f.refs || [], f.type || 'api'));
 }
 renderTabs();
 </script>

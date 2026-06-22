@@ -50,7 +50,10 @@ ABSOLUTE RULES — VIOLATION IS UNACCEPTABLE:
 9. Do NOT add any methods, routes, fields, or imports that do not exist in the reference code.
 10. Copy the EXACT IMPLEMENTATION LOGIC inside methods. Do NOT summarize or invent new logic. You must replicate the exact loops, conditionals, object creations, and database interactions as they appear in the reference code. 
 11. If the reference code iterates over an array like 'cardDetails', you must do exactly the same. Do not simplify the code!
-12. Do NOT invent new models (e.g., ActivityLog, FileStatus) or variables that are not present in the reference code snippet.
+12. Do NOT invent new models or variables *unless* they represent database tables specified in the PostgreSQL schema (like mc_enrollment_duplicates) but missing from reference snippets. If so, you MUST dynamically synthesize the Sequelize model class (e.g., McEnrollmentDuplicates) with matching properties.
+13. Select the correct template based on feature type:
+    - If the file is for a file-upload / batch feature, map its structure and logic to 'file-upload.controller.ts' / 'file-upload.service.ts'.
+    - If the file is for a standard API endpoint, map its structure and logic to 'enroll.controller.ts' / 'unenroll.controller.ts' / 'enroll.service.ts' / 'unenroll.service.ts'.
 
 ${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
 ${renderRefinements(state)}

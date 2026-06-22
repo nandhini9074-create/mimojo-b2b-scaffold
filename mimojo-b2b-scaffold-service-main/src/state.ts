@@ -17,6 +17,7 @@ export interface GithubRef {
 
 export interface FeatureInput {
   name: string;
+  type?: 'api' | 'file';
   refs?: string[];
 }
 

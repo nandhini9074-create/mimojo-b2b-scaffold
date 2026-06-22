@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsBoolean, IsNotEmpty, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -7,6 +7,11 @@ export class FeatureDto {
   @IsNotEmpty()
   @IsString()
   name: string;
+
+  @ApiProperty({ example: 'api', enum: ['api', 'file'], required: false })
+  @IsOptional()
+  @IsEnum(['api', 'file'])
+  type?: 'api' | 'file';
 
   @ApiProperty({
     required: false,
