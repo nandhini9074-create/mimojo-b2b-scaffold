@@ -1,4 +1,4 @@
-import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
+import { ArrayMinSize, IsArray, IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -12,20 +12,6 @@ export class FeatureDto {
   @IsOptional()
   @IsEnum(['api', 'file'])
   type?: 'api' | 'file';
-
-  @ApiProperty({
-    required: false,
-    type: [String],
-    example: [
-      'https://github.com/acme/order-svc/blob/main/src/order/order.controller.ts',
-      'https://github.com/acme/billing-svc/blob/main/src/invoice/invoice.service.ts',
-    ],
-    description: 'Optional GitHub URLs (file or class permalinks) to reference for this feature',
-  })
-  @IsOptional()
-  @IsArray()
-  @IsUrl({ require_protocol: true }, { each: true })
-  refs?: string[];
 }
 
 export class StartScaffoldDto {
@@ -37,13 +23,10 @@ export class StartScaffoldDto {
   @ApiProperty({
     type: [FeatureDto],
     example: [
-      {
-        name: 'create order',
-        refs: ['https://github.com/acme/order-svc/blob/main/src/order/order.controller.ts'],
-      },
-      { name: 'cancel order' },
+      { name: 'create order', type: 'api' },
+      { name: 'file upload', type: 'file' },
     ],
-    description: 'Feature list. Each feature may include reference GitHub links.',
+    description: 'Feature list. Template references are auto-resolved from the server config based on feature type.',
   })
   @IsArray()
   @ArrayMinSize(1)

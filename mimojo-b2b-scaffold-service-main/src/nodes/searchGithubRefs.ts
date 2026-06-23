@@ -3,6 +3,7 @@ import axios from "axios";
 import * as fs from "fs";
 import * as path from "path";
 import { GithubRef, PipelineState } from "../state";
+import { scaffoldTemplatesConfig } from "../config/scaffold-templates.config";
 
 const MAX_SNIPPET_SIZE = 50_000; // 50KB cap to prevent blowing AI context
 
@@ -12,7 +13,9 @@ const MAX_SNIPPET_SIZE = 50_000; // 50KB cap to prevent blowing AI context
  * For each feature:
  *  1. Use any user-supplied URLs verbatim (parsed into GithubRef shape).
  *     Fetches raw file content from raw.githubusercontent.com.
- *  2. If none supplied AND GITHUB_TOKEN+GITHUB_OWNER set, search the org
+ *  2. If no refs supplied, auto-resolve from the centralized template
+ *     config based on the feature's type (api | file).
+ *  3. If still empty AND GITHUB_TOKEN+GITHUB_OWNER set, search the org
  *     for a top match and fetch its content.
  *
  * Also fetches the full directory tree of the first referenced repo
@@ -28,6 +31,42 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
   let treeRepo = '';
   let treeBranch = 'main';
 
+  const configBranch = scaffoldTemplatesConfig.branch || 'main';
+  const configRepoUrl = scaffoldTemplatesConfig.repoUrl.replace(/\/+$/, '');
+
+  /** Tracks paths already fetched to avoid duplicate GitHub API calls. */
+  const fetchedPaths = new Set<string>();
+
+  /**
+   * Helper: build a blob URL from a config file path, fetch its content,
+   * and push a GithubRef. Skips if the path was already fetched.
+   */
+  async function fetchConfigFile(filePath: string, featureName: string) {
+    if (fetchedPaths.has(filePath)) return;
+    fetchedPaths.add(filePath);
+
+    const url = `${configRepoUrl}/blob/${configBranch}/${filePath.replace(/^\/+/, '')}`;
+    const parsed = parseGithubUrl(url);
+    const snippet = await fetchRawContent(parsed);
+    refs.push({ feature: featureName, repo: parsed.repo, path: parsed.path, url: parsed.url, snippet });
+
+    if (!treeOwner && parsed.owner) {
+      treeOwner = parsed.owner;
+      treeRepo = parsed.repoName;
+      treeBranch = parsed.branch;
+    }
+  }
+
+  // ── Step 0: Fetch shared template files (once for the entire run) ──
+  const sharedPaths = scaffoldTemplatesConfig.templates.shared ?? [];
+  if (sharedPaths.length) {
+    console.log(`[searchGithubRefs] Fetching ${sharedPaths.length} shared template files...`);
+    for (const fp of sharedPaths) {
+      await fetchConfigFile(fp, '_shared');
+    }
+  }
+
+  // ── Per-feature resolution ──
   for (const feature of state.features) {
     // 1) explicit user-supplied URLs
     if (feature.refs?.length) {
@@ -35,7 +74,6 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
         const parsed = parseGithubUrl(url);
         const snippet = await fetchRawContent(parsed);
         refs.push({ feature: feature.name, repo: parsed.repo, path: parsed.path, url: parsed.url, snippet });
-        // Capture the first repo info for tree fetching
         if (!treeOwner && parsed.owner) {
           treeOwner = parsed.owner;
           treeRepo = parsed.repoName;
@@ -45,7 +83,18 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
       continue;
     }
 
-    // 2) auto-discover via GitHub code search
+    // 2) auto-resolve type-specific files from centralized template config
+    const featureType = feature.type || 'api';
+    const templatePaths = scaffoldTemplatesConfig.templates[featureType] ?? [];
+    if (templatePaths.length) {
+      console.log(`[searchGithubRefs] Auto-resolving ${templatePaths.length} refs for feature "${feature.name}" (type=${featureType})`);
+      for (const fp of templatePaths) {
+        await fetchConfigFile(fp, feature.name);
+      }
+      continue;
+    }
+
+    // 3) fallback: auto-discover via GitHub code search
     if (!octokit || !owner) continue;
     try {
       const q = `${feature.name} org:${owner} extension:ts`;
@@ -74,6 +123,8 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
   if (treeOwner && treeRepo) {
     state.repo_tree = await fetchRepoTree(treeOwner, treeRepo, treeBranch);
   }
+
+  console.log(`[searchGithubRefs] Total refs fetched: ${refs.length} (${fetchedPaths.size} unique paths)`);
 
   try {
     const debugContent = refs.map(r => `/* ===== SOURCE: ${r.url} ===== */\n${r.snippet}`).join('\n\n');
