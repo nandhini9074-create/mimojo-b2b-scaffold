@@ -1,8 +1,46 @@
 import { o4 } from "../llm";
 import { PipelineState } from "../state";
 import { renderRefinements } from "./refinements";
+import { Logger } from "@nestjs/common";
+
+const logger = new Logger('generateArchitecture');
 
 export async function generateArchitecture(state: PipelineState, feedback?: string) {
+  const totalStarted = Date.now();
+  if (!state.template_groups || state.template_groups.length === 0) {
+    state.template_groups = [{ id: 'enrollment', features: state.features || [], output: {} }];
+  }
+
+  for (const group of state.template_groups) {
+    logger.log(`Generating diagrams for group "${group.id}"...`);
+    const started = Date.now();
+    const groupState = {
+      ...state,
+      github_refs: group.output.github_refs,
+      features: group.features,
+      functions_list: group.output.functions_list,
+    };
+    group.output.diagrams = await runArchitectureForGroup(groupState, feedback);
+    logger.log(`Diagrams for group "${group.id}" generated in ${Date.now() - started}ms`);
+  }
+
+  state.diagrams = state.template_groups[0]?.output.diagrams;
+  
+  const elapsed = Date.now() - totalStarted;
+  logger.log(`generateArchitecture completed in ${elapsed}ms`);
+
+  return state.diagrams;
+}
+
+async function runArchitectureForGroup(state: PipelineState, feedback?: string) {
+  const isTx = state.features.some(f => {
+    const name = (f.name || '').toLowerCase();
+    return name.includes('transaction') || name.includes('payout') || name.includes('merchant') || name.includes('outlet') || name.includes('payday');
+  });
+
+  const flowName = isTx ? 'Transaction / Core Processing' : 'Enrollment / Onboarding';
+  const flowListPrompt = `  1. ### ${flowName}`;
+
   const prompt = `
 You are a senior B2B integration architect. Generate THREE architecture artefacts as Mermaid
 diagrams for project "${state.projectName}". Output STRICT Markdown — exactly three top-level
@@ -77,13 +115,8 @@ Goal: explain HOW each flow works step-by-step.
 Diagram type: one Mermaid \`sequenceDiagram\` per flow.
 
 Produce a SEPARATE sequence diagram (each in its own \`\`\`mermaid block, prefixed by a \`###\`
-sub-heading naming the flow) for EACH of the following flows that is relevant given the
-function list. If a flow is not relevant, skip it (do not invent flows).
-  1. ### Enrollment / Onboarding
-  2. ### Transaction / Core Processing
-  3. ### Webhooks / Async Callbacks
-  4. ### Status Sync / Polling / Reconciliation
-  5. ### Error Handling & Retry
+sub-heading naming the flow) for EACH of the following flows:
+${flowListPrompt}
 
 Each sequence diagram MUST show:
   - Declare participants in left-to-right interaction order before any messages.

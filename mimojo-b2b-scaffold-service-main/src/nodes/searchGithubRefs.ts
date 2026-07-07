@@ -3,138 +3,183 @@ import axios from "axios";
 import * as fs from "fs";
 import * as path from "path";
 import { GithubRef, PipelineState } from "../state";
-import { scaffoldTemplatesConfig } from "../config/scaffold-templates.config";
+import { scaffoldTemplateRegistry } from "../config/scaffold-templates.config";
+import { Logger } from "@nestjs/common";
+
+const logger = new Logger('searchGithubRefs');
 
 const MAX_SNIPPET_SIZE = 50_000; // 50KB cap to prevent blowing AI context
 
+function getTokenForOwner(owner: string): string | undefined {
+  const transactionOwner = process.env.GITHUB_OWNER_TRANSACTION || 'nandhini9074-create';
+  const enrollmentOwner = process.env.GITHUB_OWNER_ENROLLMENT || process.env.GITHUB_OWNER || 'mojosoln';
+
+  if (owner === transactionOwner) {
+    return process.env.GITHUB_TOKEN_TRANSACTION || process.env.GITHUB_TOKEN;
+  }
+  if (owner === enrollmentOwner) {
+    return process.env.GITHUB_TOKEN_ENROLLMENT || process.env.GITHUB_TOKEN;
+  }
+  return process.env.GITHUB_TOKEN;
+}
+
 /**
  * Build the github_refs[] used by every downstream stage.
- *
- * For each feature:
- *  1. Use any user-supplied URLs verbatim (parsed into GithubRef shape).
- *     Fetches raw file content from raw.githubusercontent.com.
- *  2. If no refs supplied, auto-resolve from the centralized template
- *     config based on the feature's type (api | file).
- *  3. If still empty AND GITHUB_TOKEN+GITHUB_OWNER set, search the org
- *     for a top match and fetch its content.
- *
- * Also fetches the full directory tree of the first referenced repo
- * and stores it in state.repo_tree so downstream stages can mirror
- * the exact folder structure.
  */
 export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[]> {
-  const token = process.env.GITHUB_TOKEN;
-  const owner = process.env.GITHUB_OWNER;
-  const refs: GithubRef[] = [];
-  const octokit = token ? new Octokit({ auth: token }) : null;
-  let treeOwner = '';
-  let treeRepo = '';
-  let treeBranch = 'main';
-
-  const configBranch = scaffoldTemplatesConfig.branch || 'main';
-  const configRepoUrl = scaffoldTemplatesConfig.repoUrl.replace(/\/+$/, '');
-
-  /** Tracks paths already fetched to avoid duplicate GitHub API calls. */
-  const fetchedPaths = new Set<string>();
-
-  /**
-   * Helper: build a blob URL from a config file path, fetch its content,
-   * and push a GithubRef. Skips if the path was already fetched.
-   */
-  async function fetchConfigFile(filePath: string, featureName: string) {
-    if (fetchedPaths.has(filePath)) return;
-    fetchedPaths.add(filePath);
-
-    const url = `${configRepoUrl}/blob/${configBranch}/${filePath.replace(/^\/+/, '')}`;
-    const parsed = parseGithubUrl(url);
-    const snippet = await fetchRawContent(parsed);
-    refs.push({ feature: featureName, repo: parsed.repo, path: parsed.path, url: parsed.url, snippet });
-
-    if (!treeOwner && parsed.owner) {
-      treeOwner = parsed.owner;
-      treeRepo = parsed.repoName;
-      treeBranch = parsed.branch;
-    }
+  logger.log('Starting searchGithubRefs...');
+  const totalStarted = Date.now();
+  if (!state.template_groups || state.template_groups.length === 0) {
+    state.template_groups = [{ id: 'enrollment', features: state.features || [], output: {} }];
   }
 
-  // ── Step 0: Fetch shared template files (once for the entire run) ──
-  const sharedPaths = scaffoldTemplatesConfig.templates.shared ?? [];
-  if (sharedPaths.length) {
-    console.log(`[searchGithubRefs] Fetching ${sharedPaths.length} shared template files...`);
-    for (const fp of sharedPaths) {
-      await fetchConfigFile(fp, '_shared');
-    }
-  }
+  for (const group of state.template_groups) {
+    const config = scaffoldTemplateRegistry[group.id];
+    if (!config) continue;
 
-  // ── Per-feature resolution ──
-  for (const feature of state.features) {
-    // 1) explicit user-supplied URLs
-    if (feature.refs?.length) {
-      for (const url of feature.refs) {
-        const parsed = parseGithubUrl(url);
-        const snippet = await fetchRawContent(parsed);
-        refs.push({ feature: feature.name, repo: parsed.repo, path: parsed.path, url: parsed.url, snippet });
-        if (!treeOwner && parsed.owner) {
-          treeOwner = parsed.owner;
-          treeRepo = parsed.repoName;
-          treeBranch = parsed.branch;
+    group.output = group.output ?? {};
+    const groupRefs: GithubRef[] = [];
+    const groupRepoUrl = config.repoUrl.replace(/\/+$/, '');
+    const groupBranch = config.branch || 'main';
+
+    let treeOwner = '';
+    let treeRepo = '';
+    let treeBranch = 'main';
+
+    const parsedRepoUrl = parseGithubUrl(`${groupRepoUrl}/blob/${groupBranch}/`);
+    if (parsedRepoUrl.owner && parsedRepoUrl.repoName) {
+      treeOwner = parsedRepoUrl.owner;
+      treeRepo = parsedRepoUrl.repoName;
+      treeBranch = parsedRepoUrl.branch;
+    }
+
+    const groupToken = getTokenForOwner(treeOwner);
+    const groupOctokit = groupToken ? new Octokit({ auth: groupToken }) : null;
+
+    const fetchedPaths = new Set<string>();
+
+    async function fetchGroupFile(filePath: string, featureName: string) {
+      if (fetchedPaths.has(filePath)) return;
+      fetchedPaths.add(filePath);
+
+      const url = `${groupRepoUrl}/blob/${groupBranch}/${filePath.replace(/^\/+/, '')}`;
+      const parsed = parseGithubUrl(url);
+      const snippet = await fetchRawContent(parsed);
+      if (snippet !== undefined) {
+        groupRefs.push({ feature: featureName, repo: parsed.repo, path: parsed.path, url: parsed.url, snippet });
+      }
+    }
+
+    // Fetch group-specific shared files
+    for (const fp of config.templates.shared) {
+      await fetchGroupFile(fp, '_shared');
+    }
+
+    // Fetch per-feature files
+    for (const feature of group.features) {
+      if (feature.refs?.length) {
+        for (const url of feature.refs) {
+          const parsed = parseGithubUrl(url);
+          const snippet = await fetchRawContent(parsed);
+          if (snippet !== undefined) {
+            groupRefs.push({ feature: feature.name, repo: parsed.repo, path: parsed.path, url: parsed.url, snippet });
+          }
         }
+        continue;
       }
-      continue;
-    }
 
-    // 2) auto-resolve type-specific files from centralized template config
-    const featureType = feature.type || 'api';
-    const templatePaths = scaffoldTemplatesConfig.templates[featureType] ?? [];
-    if (templatePaths.length) {
-      console.log(`[searchGithubRefs] Auto-resolving ${templatePaths.length} refs for feature "${feature.name}" (type=${featureType})`);
-      for (const fp of templatePaths) {
-        await fetchConfigFile(fp, feature.name);
+      const featureType = feature.type || 'api';
+      let templatePaths = config.templates[featureType] ?? [];
+      const hasControllerOrService = templatePaths.some(p => p.includes('controller') || p.includes('service'));
+      if (!hasControllerOrService) {
+        const otherType = featureType === 'api' ? 'file' : 'api';
+        templatePaths = [...templatePaths, ...(config.templates[otherType] ?? [])];
       }
-      continue;
-    }
 
-    // 3) fallback: auto-discover via GitHub code search
-    if (!octokit || !owner) continue;
-    try {
-      const q = `${feature.name} org:${owner} extension:ts`;
-      const { data } = await octokit.search.code({ q, per_page: 1 });
-      const top = data.items?.[0];
-      if (top) {
-        const parsed = parseGithubUrl(top.html_url);
-        const snippet = await fetchRawContent(parsed);
-        refs.push({
-          feature: feature.name,
-          repo: top.repository.full_name,
-          path: top.path,
-          url: top.html_url,
-          snippet,
-        });
-        if (!treeOwner && parsed.owner) {
-          treeOwner = parsed.owner;
-          treeRepo = parsed.repoName;
-          treeBranch = parsed.branch;
+      // Filter controllers based on feature type (API vs File Upload) and card scheme for Transaction group
+      templatePaths = templatePaths.filter(p => {
+        // ── Transaction Group ──────────────────────────────────────────────
+        if (p.endsWith('transaction.controller.ts') || p.endsWith('transaction-v2.controller.ts')) {
+          if (featureType !== 'api') {
+            // File-upload type: neither V1 nor V2 api controllers needed here
+            return false;
+          }
+          // API type: pick controller based on card scheme
+          // VISA Only (or no scheme)  → V1 (transaction.controller.ts)
+          // MC Only | MC and VISA     → V2 (transaction-v2.controller.ts)
+          const scheme = (feature as any).scheme as string | undefined;
+          const isMcScheme = scheme === 'MC' || scheme === 'MC and VISA';
+          if (p.endsWith('transaction.controller.ts')) {
+            return !isMcScheme; // keep V1 only for VISA / no-scheme
+          }
+          if (p.endsWith('transaction-v2.controller.ts')) {
+            return isMcScheme; // keep V2 only for MC / MC and VISA
+          }
         }
+
+        // ── Enrollment Group ───────────────────────────────────────────────
+        if (p.endsWith('enroll.controller.ts') || p.endsWith('unenroll.controller.ts')) {
+          return featureType === 'api';
+        }
+        if (p.endsWith('file-upload.controller.ts')) {
+          return featureType !== 'api';
+        }
+
+        return true;
+      });
+
+      if (templatePaths.length) {
+        const schemeTag = (feature as any).scheme ? ` [scheme: ${(feature as any).scheme}]` : '';
+        logger.log(`Auto-resolving ${templatePaths.length} refs for group ${group.id} feature "${feature.name}"${schemeTag} → [${templatePaths.map(p => p.split('/').pop()).join(', ')}]`);
+        for (const fp of templatePaths) {
+          await fetchGroupFile(fp, feature.name);
+        }
+        continue;
       }
-    } catch (_err) { /* rate-limit etc. — skip */ }
+
+      if (!groupOctokit || !treeOwner) continue;
+      try {
+        const q = `${feature.name} org:${treeOwner} repo:${treeRepo} extension:ts`;
+        const { data } = await groupOctokit.search.code({ q, per_page: 1 });
+        const top = data.items?.[0];
+        if (top) {
+          const parsed = parseGithubUrl(top.html_url);
+          const snippet = await fetchRawContent(parsed);
+          if (snippet !== undefined) {
+            groupRefs.push({
+              feature: feature.name,
+              repo: top.repository.full_name,
+              path: top.path,
+              url: top.html_url,
+              snippet,
+            });
+          }
+        }
+      } catch (_err) { /* ignore search error */ }
+    }
+
+    group.output.github_refs = groupRefs;
+
+    if (treeOwner && treeRepo) {
+      group.output.repo_tree = await fetchRepoTree(treeOwner, treeRepo, treeBranch);
+    }
   }
 
-  // Fetch the full directory tree of the reference repo
-  if (treeOwner && treeRepo) {
-    state.repo_tree = await fetchRepoTree(treeOwner, treeRepo, treeBranch);
-  }
+  state.github_refs = state.template_groups.flatMap(g => g.output.github_refs ?? []);
+  state.repo_tree = state.template_groups[0]?.output.repo_tree;
 
-  console.log(`[searchGithubRefs] Total refs fetched: ${refs.length} (${fetchedPaths.size} unique paths)`);
+  const elapsed = Date.now() - totalStarted;
+  logger.log(`Total refs fetched: ${state.github_refs.length} in ${elapsed}ms`);
 
   try {
-    const debugContent = refs.map(r => `/* ===== SOURCE: ${r.url} ===== */\n${r.snippet}`).join('\n\n');
+    const debugContent = state.github_refs.map(r => `/* ===== SOURCE: ${r.url} ===== */\n${r.snippet}`).join('\n\n');
     const debugPath = path.join(process.cwd(), 'github_snippets_debug.txt');
     fs.writeFileSync(debugPath, debugContent, 'utf-8');
   } catch (err) {
-    console.warn('[searchGithubRefs] Failed to write debug snippet file:', (err as Error).message);
+    logger.warn('Failed to write debug snippet file: ' + (err as Error).message);
   }
 
-  return refs;
+  return state.github_refs;
 }
 
 /**
@@ -148,7 +193,7 @@ async function fetchRepoTree(
   branch: string,
 ): Promise<string | undefined> {
   try {
-    const token = process.env.GITHUB_TOKEN;
+    const token = getTokenForOwner(owner);
     const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
 
     const headers: Record<string, string> = {
@@ -176,7 +221,7 @@ async function fetchRepoTree(
     }
     return undefined;
   } catch (err) {
-    console.warn(`[searchGithubRefs] Failed to fetch repo tree for ${owner}/${repo}:`, (err as Error).message);
+    logger.warn(`Failed to fetch repo tree for ${owner}/${repo}: ` + (err as Error).message);
     return undefined;
   }
 }
@@ -196,8 +241,9 @@ async function fetchRawContent(
   const headers: Record<string, string> = {
     'Accept': 'application/vnd.github.v3.raw'
   };
-  if (process.env.GITHUB_TOKEN) {
-    headers['Authorization'] = `token ${process.env.GITHUB_TOKEN}`;
+  const token = getTokenForOwner(parsed.owner);
+  if (token) {
+    headers['Authorization'] = `token ${token}`;
   }
 
   try {
@@ -213,7 +259,7 @@ async function fetchRawContent(
     }
     return content;
   } catch (err) {
-    console.warn(`[searchGithubRefs] Failed to fetch raw content for ${apiUrl}:`, (err as Error).message);
+    logger.warn(`Failed to fetch raw content for ${apiUrl}: ` + (err as Error).message);
     return undefined;
   }
 }

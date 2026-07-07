@@ -1,10 +1,58 @@
 import { gpt41 } from "../llm";
 import { PipelineState } from "../state";
 import { renderRefinements } from "./refinements";
+import { Logger } from "@nestjs/common";
+
+const logger = new Logger('generateModuleCode');
 
 export async function generateModuleCode(
   state: PipelineState,
   feedback?: string,
+  onProgress?: () => Promise<void>,
+): Promise<Record<string, string>> {
+  const totalStarted = Date.now();
+  if (!state.template_groups || state.template_groups.length === 0) {
+    state.template_groups = [{ id: 'enrollment', features: state.features || [], output: {} }];
+  }
+
+  for (const group of state.template_groups) {
+    logger.log(`Starting code generation for group "${group.id}"...`);
+    const started = Date.now();
+    const groupState = {
+      ...state,
+      github_refs: group.output.github_refs,
+      features: group.features,
+      functions_list: group.output.functions_list,
+      db_schema: group.output.db_schema,
+      repo_tree: group.output.repo_tree,
+      code_plan: group.output.code_plan,
+    };
+    group.output.code_files = await runModuleCodeForGroup(
+      groupState,
+      feedback,
+      async (file: string, code: string) => {
+        group.output.code_files = { ...(group.output.code_files ?? {}), [file]: code };
+        state.code_files = { ...(state.code_files ?? {}), [file]: code };
+        if (onProgress) {
+          await onProgress();
+        }
+      }
+    );
+    logger.log(`Code generation for group "${group.id}" completed in ${Date.now() - started}ms`);
+  }
+
+  state.code_files = state.template_groups[0]?.output.code_files;
+  
+  const elapsed = Date.now() - totalStarted;
+  logger.log(`generateModuleCode completed in ${elapsed}ms`);
+
+  return state.code_files || {};
+}
+
+async function runModuleCodeForGroup(
+  state: PipelineState,
+  feedback?: string,
+  onFileGenerated?: (file: string, code: string) => Promise<void>,
 ): Promise<Record<string, string>> {
   const files = state.code_plan?.files ?? [];
   const codeFiles: Record<string, string> = {};
@@ -15,7 +63,26 @@ export async function generateModuleCode(
   }
 
   for (const file of files) {
-    console.log(`[generateModuleCode] Generating code for ${file}... please wait...`);
+    const fileStart = Date.now();
+    const lowerFile = file.toLowerCase();
+    const isCore = lowerFile.includes('controller') || 
+                   lowerFile.includes('service') || 
+                   lowerFile.includes('module') || 
+                   lowerFile.includes('model') || 
+                   lowerFile.includes('entity') || 
+                   lowerFile.includes('dto');
+
+    if (!isCore) {
+      const commentedContent = getCommentedContent(file);
+      codeFiles[file] = commentedContent;
+      if (onFileGenerated) {
+        await onFileGenerated(file, commentedContent);
+      }
+      logger.log(`Generated non-core file ${file} as commented template`);
+      continue;
+    }
+
+    logger.log(`Generating code for ${file}... please wait...`);
     // Find the most relevant reference snippet for this file type
     const refSnippets = (state.github_refs ?? [])
       .filter(r => r.snippet)
@@ -39,7 +106,7 @@ ${refSnippets}
 ${state.repo_tree ? `Reference repository folder structure:\n${state.repo_tree}\n` : ''}
 
 ABSOLUTE RULES — VIOLATION IS UNACCEPTABLE:
-1. The reference code above is your TEMPLATE. You must replicate its EXACT structure for the corresponding file type.
+1. The reference code above is your TEMPLATE. You must replicate its structure for the corresponding file type, but you MUST ONLY implement the methods/endpoints/functions that are explicitly defined in the Functions list above. Do NOT generate any other methods, endpoints, or logic from the REFERENCE CODE templates that are NOT listed in the Functions list.
 2. If the reference controller has @Controller('card') with ONE method, your output must have the SAME decorator pattern with ONE method. Do NOT add extra routes.
 3. If the reference uses custom decorators like @ApiEndpoint, you MUST use the same decorator. Do NOT replace it with @ApiOperation or other alternatives.
 4. If the reference uses BaseResponse<any> as the return type, you MUST use BaseResponse<any>. Do NOT change it to a raw entity type.
@@ -54,6 +121,7 @@ ABSOLUTE RULES — VIOLATION IS UNACCEPTABLE:
 13. Select the correct template based on feature type:
     - If the file is for a file-upload / batch feature, map its structure and logic to 'file-upload.controller.ts' / 'file-upload.service.ts'.
     - If the file is for a standard API endpoint, map its structure and logic to 'enroll.controller.ts' / 'unenroll.controller.ts' / 'enroll.service.ts' / 'unenroll.service.ts'.
+14. The generated controllers and services MUST ONLY contain the functions/methods listed in the Functions list. Any routes, methods, or logic present in the reference templates that are not in the Functions list must be filtered out and omitted.
 
 ${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
 ${renderRefinements(state)}
@@ -77,7 +145,22 @@ Return ONLY the file contents — no markdown fences, no commentary.
 `;
     const res = await gpt41.invoke(prompt);
     codeFiles[file] = res.content as string;
+    if (onFileGenerated) {
+      await onFileGenerated(file, res.content as string);
+    }
+    logger.log(`Generated ${file} in ${Date.now() - fileStart}ms`);
   }
 
   return codeFiles;
+}
+
+function getCommentedContent(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase();
+  if (ext === 'json') {
+    return `{\n  "comment": "This JSON configuration file (${filePath}) has been commented out to prioritize generating the core feature files (Controllers, Services, Modules, Entities, DTOs)."\n}`;
+  }
+  if (ext === 'md' || ext === 'yaml' || ext === 'yml') {
+    return `# This documentation/config file (${filePath}) has been commented out to prioritize generating the core feature files (Controllers, Services, Modules, Entities, DTOs).`;
+  }
+  return `// This source/helper file (${filePath}) has been commented out to prioritize generating the core feature files (Controllers, Services, Modules, Entities, DTOs).`;
 }

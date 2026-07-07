@@ -25,7 +25,7 @@ export class ScaffoldController {
   @ApiOperation({ summary: 'Start a new scaffold session (runs functions stage)' })
   @Post('start')
   start(@Body() dto: StartScaffoldDto) {
-    return this.scaffoldService.start(dto.projectName, dto.features);
+    return this.scaffoldService.start(dto.projectName, dto.features, dto.template_groups);
   }
 
   @ApiOperation({ summary: 'Approve or reject current stage' })

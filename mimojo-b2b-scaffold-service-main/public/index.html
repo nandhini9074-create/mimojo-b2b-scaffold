@@ -1,379 +1,1172 @@
 <!doctype html>
 <html lang="en">
+
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>B2B Scaffold — Human-in-the-Loop Console</title>
-<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.3/dist/svg2pdf.umd.min.js"></script>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" />
-<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-<style>
-  :root {
-    --bg:#0f172a; --panel:#1e293b; --panel2:#334155; --border:#475569;
-    --fg:#e2e8f0; --muted:#94a3b8; --accent:#38bdf8; --ok:#22c55e; --warn:#f59e0b; --err:#ef4444;
-  }
-  * { box-sizing: border-box; }
-  body { margin:0; font-family: -apple-system,Segoe UI,Roboto,system-ui,sans-serif;
-         background:var(--bg); color:var(--fg); }
-  header { padding:14px 20px; background:var(--panel); border-bottom:1px solid var(--border);
-           display:flex; align-items:center; gap:14px; }
-  header h1 { font-size:16px; margin:0; flex:1; }
-  header .session { font-family: monospace; color:var(--muted); font-size:12px; }
-  main {
-    display:grid;
-    grid-template-columns: var(--left-w, 340px) 1fr var(--right-w, 280px);
-    gap:0; height:calc(100vh - 53px);
-    transition: grid-template-columns .25s ease;
-  }
-  main.left-collapsed  { --left-w: 0px; }
-  main.right-collapsed { --right-w: 0px; }
-  aside { background:var(--panel); border-right:1px solid var(--border); overflow:hidden; padding:16px; position:relative; }
-  aside .panel-inner { height:100%; overflow-y:auto; }
-  aside.timeline { border-right:none; border-left:1px solid var(--border); }
-  main.left-collapsed  aside.left  { padding:0; border-right:none; }
-  main.right-collapsed aside.timeline { padding:0; border-left:none; }
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>B2B Scaffold — Human-in-the-Loop Console</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.3/dist/svg2pdf.umd.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" />
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --panel2: #334155;
+      --border: #475569;
+      --fg: #e2e8f0;
+      --muted: #94a3b8;
+      --accent: #38bdf8;
+      --ok: #22c55e;
+      --warn: #f59e0b;
+      --err: #ef4444;
+    }
 
-  /* Floating toggle handles — always visible at the panel edge */
-  .panel-toggle {
-    position:absolute; top:14px; width:22px; height:32px; padding:0;
-    background:var(--panel2); color:var(--fg); border:1px solid var(--border);
-    border-radius:4px; font-size:14px; line-height:30px; cursor:pointer; z-index:5;
-    display:flex; align-items:center; justify-content:center;
-  }
-  .panel-toggle:hover { background:var(--accent); color:#000; }
-  /* Left toggle — sits inside left aside, flush with right edge; when collapsed, floats just past 0 */
-  .panel-toggle.left  { right:-11px; }
-  main.left-collapsed .panel-toggle.left {
-    position:fixed; top:67px; left:6px; right:auto;
-  }
-  /* Right toggle — sits inside right aside, flush with left edge; when collapsed, floats from window right */
-  .panel-toggle.right { left:-11px; }
-  main.right-collapsed .panel-toggle.right {
-    position:fixed; top:67px; right:6px; left:auto;
-  }
-  section.viewer { padding:18px 22px; overflow-y:auto; }
-  h2 { font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); margin:18px 0 8px; }
-  label { display:block; font-size:12px; color:var(--muted); margin-bottom:4px; }
-  input, textarea, select, button {
-    background:var(--panel2); color:var(--fg); border:1px solid var(--border); border-radius:6px;
-    padding:8px 10px; font-size:13px; width:100%; font-family:inherit;
-  }
-  textarea { resize:vertical; min-height:60px; font-family:monospace; }
-  button { cursor:pointer; background:var(--accent); color:#000; font-weight:600; border:none; }
-  button:hover { filter:brightness(1.1); }
-  button.secondary { background:var(--panel2); color:var(--fg); border:1px solid var(--border); }
-  button.danger { background:var(--err); color:#fff; }
-  button:disabled { opacity:.5; cursor:not-allowed; }
-  .feature-row { background:var(--panel2); border:1px solid var(--border); border-radius:8px;
-                 padding:10px; margin-bottom:8px; }
-  .feature-row .row-header { display:flex; gap:6px; align-items:center; margin-bottom:6px; }
-  .feature-row .row-header input { flex:1; }
-  .feature-row textarea { font-size:11px; min-height:40px; }
-  .actions { display:flex; gap:8px; margin-top:14px; }
-  pre { background:#020617; padding:14px; border-radius:8px; overflow:auto; max-height:50vh;
-        font-size:12px; line-height:1.55; border:1px solid var(--border); }
-  .toast { position:fixed; bottom:20px; right:20px; padding:12px 18px; border-radius:8px;
-           background:var(--panel); border:1px solid var(--border); z-index:99; max-width:400px;
-           animation: fade .3s; }
-  .toast.err { border-color:var(--err); }
-  @keyframes fade { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
-  .tabs { display:flex; gap:2px; margin-bottom:12px; border-bottom:1px solid var(--border); flex-wrap:wrap; }
-  .tab { padding:8px 14px; cursor:pointer; font-size:12px; color:var(--muted); border-bottom:2px solid transparent; }
-  .tab.active { color:var(--fg); border-bottom-color:var(--accent); }
-  details { margin-bottom:8px; background:var(--panel2); padding:8px 12px; border-radius:6px; }
-  summary { cursor:pointer; font-size:12px; }
-  .empty { color:var(--muted); font-style:italic; padding:20px; text-align:center; }
-  .file-list { display:grid; grid-template-columns: 220px 1fr; gap:0; height:50vh; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
-  .file-list ul { list-style:none; margin:0; padding:0; overflow-y:auto; background:var(--panel); }
-  .file-list li { padding:8px 12px; cursor:pointer; font-size:12px; font-family:monospace;
-                  border-bottom:1px solid var(--border); }
-  .file-list li.active { background:var(--panel2); color:var(--accent); }
-  .file-list pre { margin:0; max-height:none; height:100%; border:none; border-radius:0; }
-  .row { display:flex; gap:8px; }
-  .row > * { flex:1; }
-  .mermaid { background:#fff; border-radius:8px; padding:12px; margin-bottom:14px; }
-  a { color:var(--accent); }
+    * {
+      box-sizing: border-box;
+    }
 
-  /* ----- Past sessions list ----- */
-  .session-row {
-    display:flex; align-items:center; gap:6px; padding:6px 8px; border-radius:6px;
-    background:var(--panel2); border:1px solid var(--border); margin-bottom:6px;
-    font-size:12px; cursor:pointer;
-  }
-  .session-row:hover { border-color:var(--accent); }
-  .session-row.active { border-color:var(--accent); background:rgba(56,189,248,.08); }
-  .session-row .name  { flex:1; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .session-row .stage { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.05em; }
-  .session-row .when  { color:var(--muted); font-size:10px; margin-top:2px; }
+    body {
+      margin: 0;
+      font-family: -apple-system, Segoe UI, Roboto, system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+    }
 
-  /* ----- Diagram toolbar + fullscreen ----- */
-  .mermaid-wrap { position:relative; margin-bottom:14px; }
-  .mermaid-toolbar {
-    position:absolute; top:6px; right:6px; display:flex; gap:4px; z-index:2;
-    opacity:0; transition:opacity .15s ease;
-  }
-  .mermaid-wrap:hover .mermaid-toolbar { opacity:1; }
-  .mermaid-toolbar button {
-    width:auto; padding:4px 8px; font-size:11px; background:rgba(15,23,42,.85); color:#fff;
-    border:1px solid var(--border); border-radius:4px; font-weight:500;
-  }
-  .mermaid-toolbar button:hover { background:var(--accent); color:#000; }
+    header {
+      padding: 14px 20px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
 
-  /* Fullscreen overlay */
-  .mmd-fs-overlay {
-    position:fixed; inset:0; background:rgba(2,6,23,.92); z-index:1000;
-    display:flex; flex-direction:column; padding:0;
-  }
-  .mmd-fs-bar {
-    display:flex; align-items:center; gap:8px; padding:10px 16px;
-    background:var(--panel); border-bottom:1px solid var(--border);
-  }
-  .mmd-fs-bar h3 { margin:0; flex:1; font-size:14px; }
-  .mmd-fs-bar button { width:auto; padding:6px 12px; font-size:12px; }
-  .mmd-fs-stage {
-    flex:1; overflow:auto; background:#fff; padding:24px; display:flex;
-    align-items:center; justify-content:center;
-  }
-  .mmd-fs-stage svg { max-width:100%; height:auto; }
+    header h1 {
+      font-size: 16px;
+      margin: 0;
+      flex: 1;
+    }
 
-  /* ----- Timeline ----- */
-  .timeline-list { position:relative; padding-left:22px; }
-  .timeline-list::before {
-    content:""; position:absolute; left:8px; top:6px; bottom:6px; width:2px; background:var(--border);
-  }
-  .tl-item { position:relative; margin-bottom:14px; }
-  .tl-item .dot {
-    position:absolute; left:-22px; top:2px; width:18px; height:18px; border-radius:50%;
-    background:var(--panel2); border:2px solid var(--border);
-    display:flex; align-items:center; justify-content:center; font-size:10px;
-  }
-  .tl-item.done   .dot { background:var(--ok);     border-color:var(--ok);     color:#000; }
-  .tl-item.active .dot { background:var(--accent); border-color:var(--accent); color:#000; }
-  .tl-item.waiting .dot { background:var(--warn);  border-color:var(--warn);   color:#000;
-                          animation: pulse 1.4s ease-in-out infinite; }
-  @keyframes pulse { 0%,100% { transform:scale(1); } 50% { transform:scale(1.18); } }
-  .tl-item .name { font-size:13px; font-weight:600; }
-  .tl-item .meta { font-size:11px; color:var(--muted); margin-top:2px; }
-  .tl-item.waiting .meta { color:var(--warn); font-weight:600; }
-  .tl-running { display:inline-block; width:9px; height:9px; border-radius:50%;
-                background:var(--accent); animation: pulse 1.2s infinite; margin-left:6px; vertical-align:middle; }
+    header .session {
+      font-family: monospace;
+      color: var(--muted);
+      font-size: 12px;
+    }
 
-  /* Swagger UI is rendered inside a sandboxed iframe to isolate it from
+    main {
+      display: grid;
+      grid-template-columns: var(--left-w, 340px) 1fr var(--right-w, 280px);
+      gap: 0;
+      height: calc(100vh - 53px);
+      transition: grid-template-columns .25s ease;
+    }
+
+    main.left-collapsed {
+      --left-w: 0px;
+    }
+
+    main.right-collapsed {
+      --right-w: 0px;
+    }
+
+    aside {
+      background: var(--panel);
+      border-right: 1px solid var(--border);
+      overflow: hidden;
+      padding: 16px;
+      position: relative;
+    }
+
+    aside .panel-inner {
+      height: 100%;
+      overflow-y: auto;
+    }
+
+    aside.timeline {
+      border-right: none;
+      border-left: 1px solid var(--border);
+    }
+
+    main.left-collapsed aside.left {
+      padding: 0;
+      border-right: none;
+    }
+
+    main.right-collapsed aside.timeline {
+      padding: 0;
+      border-left: none;
+    }
+
+    /* Floating toggle handles — always visible at the panel edge */
+    .panel-toggle {
+      position: absolute;
+      top: 14px;
+      width: 22px;
+      height: 32px;
+      padding: 0;
+      background: var(--panel2);
+      color: var(--fg);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 14px;
+      line-height: 30px;
+      cursor: pointer;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .panel-toggle:hover {
+      background: var(--accent);
+      color: #000;
+    }
+
+    /* Left toggle — sits inside left aside, flush with right edge; when collapsed, floats just past 0 */
+    .panel-toggle.left {
+      right: -11px;
+    }
+
+    main.left-collapsed .panel-toggle.left {
+      position: fixed;
+      top: 67px;
+      left: 6px;
+      right: auto;
+    }
+
+    /* Right toggle — sits inside right aside, flush with left edge; when collapsed, floats from window right */
+    .panel-toggle.right {
+      left: -11px;
+    }
+
+    main.right-collapsed .panel-toggle.right {
+      position: fixed;
+      top: 67px;
+      right: 6px;
+      left: auto;
+    }
+
+    section.viewer {
+      padding: 18px 22px;
+      overflow-y: auto;
+    }
+
+    h2 {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin: 18px 0 8px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+
+    input,
+    textarea,
+    select,
+    button {
+      background: var(--panel2);
+      color: var(--fg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 10px;
+      font-size: 13px;
+      width: 100%;
+      font-family: inherit;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 60px;
+      font-family: monospace;
+    }
+
+    button {
+      cursor: pointer;
+      background: var(--accent);
+      color: #000;
+      font-weight: 600;
+      border: none;
+    }
+
+    button:hover {
+      filter: brightness(1.1);
+    }
+
+    button.secondary {
+      background: var(--panel2);
+      color: var(--fg);
+      border: 1px solid var(--border);
+    }
+
+    button.danger {
+      background: var(--err);
+      color: #fff;
+    }
+
+    button:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .feature-row {
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+
+    .feature-row .row-header {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .feature-row .row-header input {
+      flex: 1;
+    }
+
+    .feature-row textarea {
+      font-size: 11px;
+      min-height: 40px;
+    }
+
+    .actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    pre {
+      background: #020617;
+      padding: 14px;
+      border-radius: 8px;
+      overflow: auto;
+      max-height: 50vh;
+      font-size: 12px;
+      line-height: 1.55;
+      border: 1px solid var(--border);
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      padding: 12px 18px;
+      border-radius: 8px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      z-index: 99;
+      max-width: 400px;
+      animation: fade .3s;
+    }
+
+    .toast.err {
+      border-color: var(--err);
+    }
+
+    @keyframes fade {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    .tabs {
+      display: flex;
+      gap: 2px;
+      margin-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+
+    .tab {
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 12px;
+      color: var(--muted);
+      border-bottom: 2px solid transparent;
+    }
+
+    .tab.active {
+      color: var(--fg);
+      border-bottom-color: var(--accent);
+    }
+
+    details {
+      margin-bottom: 8px;
+      background: var(--panel2);
+      padding: 8px 12px;
+      border-radius: 6px;
+    }
+
+    summary {
+      cursor: pointer;
+      font-size: 12px;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-style: italic;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .file-list {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      gap: 0;
+      height: 50vh;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .file-list ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      overflow-y: auto;
+      background: var(--panel);
+    }
+
+    .file-list li {
+      padding: 8px 12px;
+      cursor: pointer;
+      font-size: 12px;
+      font-family: monospace;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .file-list li.active {
+      background: var(--panel2);
+      color: var(--accent);
+    }
+
+    .file-list pre {
+      margin: 0;
+      max-height: none;
+      height: 100%;
+      border: none;
+      border-radius: 0;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+    }
+
+    .row>* {
+      flex: 1;
+    }
+
+    .mermaid {
+      background: #fff;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 14px;
+    }
+
+    a {
+      color: var(--accent);
+    }
+
+    /* ----- Past sessions list ----- */
+    .session-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 8px;
+      border-radius: 6px;
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      margin-bottom: 6px;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .session-row:hover {
+      border-color: var(--accent);
+    }
+
+    .session-row.active {
+      border-color: var(--accent);
+      background: rgba(56, 189, 248, .08);
+    }
+
+    .session-row .name {
+      flex: 1;
+      font-weight: 600;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .session-row .stage {
+      color: var(--muted);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .session-row .when {
+      color: var(--muted);
+      font-size: 10px;
+      margin-top: 2px;
+    }
+
+    /* ----- Diagram toolbar + fullscreen ----- */
+    .mermaid-wrap {
+      position: relative;
+      margin-bottom: 14px;
+    }
+
+    .mermaid-toolbar {
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      display: flex;
+      gap: 4px;
+      z-index: 2;
+      opacity: 0;
+      transition: opacity .15s ease;
+    }
+
+    .mermaid-wrap:hover .mermaid-toolbar {
+      opacity: 1;
+    }
+
+    .mermaid-toolbar button {
+      width: auto;
+      padding: 4px 8px;
+      font-size: 11px;
+      background: rgba(15, 23, 42, .85);
+      color: #fff;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .mermaid-toolbar button:hover {
+      background: var(--accent);
+      color: #000;
+    }
+
+    /* Fullscreen overlay */
+    .mmd-fs-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(2, 6, 23, .92);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      padding: 0;
+    }
+
+    .mmd-fs-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .mmd-fs-bar h3 {
+      margin: 0;
+      flex: 1;
+      font-size: 14px;
+    }
+
+    .mmd-fs-bar button {
+      width: auto;
+      padding: 6px 12px;
+      font-size: 12px;
+    }
+
+    .mmd-fs-stage {
+      flex: 1;
+      overflow: auto;
+      background: #fff;
+      padding: 24px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .mmd-fs-stage svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* ----- Timeline ----- */
+    .timeline-list {
+      position: relative;
+      padding-left: 22px;
+    }
+
+    .timeline-list::before {
+      content: "";
+      position: absolute;
+      left: 8px;
+      top: 6px;
+      bottom: 6px;
+      width: 2px;
+      background: var(--border);
+    }
+
+    .tl-item {
+      position: relative;
+      margin-bottom: 14px;
+    }
+
+    .tl-item .dot {
+      position: absolute;
+      left: -22px;
+      top: 2px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--panel2);
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+    }
+
+    .tl-item.done .dot {
+      background: var(--ok);
+      border-color: var(--ok);
+      color: #000;
+    }
+
+    .tl-item.active .dot {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #000;
+    }
+
+    .tl-item.waiting .dot {
+      background: var(--warn);
+      border-color: var(--warn);
+      color: #000;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.18);
+      }
+    }
+
+    .tl-item .name {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .tl-item .meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .tl-item.waiting .meta {
+      color: var(--warn);
+      font-weight: 600;
+    }
+
+    .tl-running {
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 1.2s infinite;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+
+    /* Swagger UI is rendered inside a sandboxed iframe to isolate it from
      the parent page's flex/grid CSS, which was breaking horizontal text flow. */
-  .swagger-frame {
-    width: 100%;
-    min-height: 70vh;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: #fff;
-  }
-</style>
+    .swagger-frame {
+      width: 100%;
+      min-height: 70vh;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .template-block {
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 10px;
+    }
+
+    .template-block.enrollment {
+      border-left: 3px solid #0ea5e9;
+    }
+
+    .template-block.transaction {
+      border-left: 3px solid #f97316;
+    }
+
+    .block-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .block-badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .enrollment .block-badge {
+      background: #0ea5e9;
+    }
+
+    .transaction .block-badge {
+      background: #f97316;
+    }
+
+    /* ---- Cascading Feature Selector ---- */
+    .cascade-selector { display: flex; flex-direction: column; gap: 10px; }
+
+    .cascade-template-row {
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      transition: border-color .2s;
+    }
+
+    .cascade-template-row.selected { border-color: var(--accent); }
+    .cascade-template-row.enrollment.selected { border-color: #0ea5e9; }
+    .cascade-template-row.transaction.selected { border-color: #f97316; }
+
+    .cascade-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .cascade-header:hover { background: rgba(255,255,255,.04); }
+
+    .cascade-toggle-icon {
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      flex-shrink: 0;
+      transition: background .15s, border-color .15s;
+    }
+
+    .cascade-template-row.selected .cascade-toggle-icon.enrollment {
+      background: #0ea5e9; border-color: #0ea5e9; color: #fff;
+    }
+    .cascade-template-row.selected .cascade-toggle-icon.transaction {
+      background: #f97316; border-color: #f97316; color: #fff;
+    }
+
+    .cascade-title { font-weight: 700; font-size: 13px; flex: 1; }
+    .cascade-subtitle { font-size: 10px; color: var(--muted); }
+
+    .cascade-body {
+      padding: 0 12px 12px;
+      display: none;
+      border-top: 1px solid var(--border);
+      animation: fadeIn .15s ease;
+    }
+
+    .cascade-template-row.selected .cascade-body { display: block; }
+
+    @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+
+    .cascade-option-group { margin-top: 10px; }
+    .cascade-option-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing:.06em; }
+
+    .cascade-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    .cascade-pill {
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1.5px solid var(--border);
+      background: var(--panel);
+      color: var(--muted);
+      cursor: pointer;
+      transition: all .15s;
+    }
+
+    .cascade-pill:hover { border-color: var(--accent); color: var(--fg); }
+    .cascade-pill.active { background: var(--accent); color: #000; border-color: var(--accent); }
+    .cascade-pill.enrollment-pill.active { background: #0ea5e9; border-color: #0ea5e9; color: #fff; }
+    .cascade-pill.transaction-pill.active { background: #f97316; border-color: #f97316; color: #fff; }
+    .cascade-pill.scheme-pill.active { background: #8b5cf6; border-color: #8b5cf6; color: #fff; }
+
+    .cascade-sub-group { margin-top: 10px; padding: 8px 10px; background: rgba(255,255,255,.03); border-radius: 8px; border: 1px solid var(--border); }
+
+    /* Toggle pill bar — appears only for multi-block sessions */
+    .view-toggle {
+      display: flex;
+      gap: 4px;
+      padding: 8px 0 12px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 14px;
+    }
+
+    .view-toggle .vt-btn {
+      flex: 1;
+      padding: 7px 10px;
+      border-radius: 20px;
+      font-size: 12px;
+      background: var(--panel2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      font-weight: 500;
+      transition: all .15s;
+    }
+
+    .view-toggle .vt-btn.active {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+
+    .view-toggle .vt-btn:hover:not(.active) {
+      border-color: var(--accent);
+      color: var(--fg);
+    }
+
+    /* Group cards (used in Both mode) */
+    .group-card {
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+      margin-bottom: 16px;
+    }
+
+    .group-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: .04em;
+    }
+
+    .group-card-header .badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+
+    .group-card.enrollment .group-card-header {
+      background: rgba(56, 189, 248, .12);
+    }
+
+    .group-card.enrollment .badge {
+      background: #0ea5e9;
+      color: #fff;
+    }
+
+    .group-card.transaction .group-card-header {
+      background: rgba(251, 146, 60, .12);
+    }
+
+    .group-card.transaction .badge {
+      background: #f97316;
+      color: #fff;
+    }
+
+    .group-card-body {
+      padding: 14px;
+    }
+
+    .group-card-body.collapsed {
+      display: none;
+    }
+
+    .collapse-btn {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 13px;
+      width: auto;
+      padding: 0;
+    }
+  </style>
 </head>
+
 <body>
 
-<header>
-  <img src="https://images.squarespace-cdn.com/content/v1/68199b428e15984fb36bb76c/9fa68d10-954f-4528-85f0-91df0cecb667/logo.png"
-       alt="Mimojo logo"
-       style="height:32px;width:auto;display:block;border-radius:4px;background:#fff;padding:2px 6px" />
-  <h1>B2B Scaffold Console — Human in the Loop</h1>
-  <span class="session" id="sessionLabel">no session</span>
-  <button class="secondary" id="resetBtn" style="width:auto">Reset</button>
-</header>
+  <header>
+    <img
+      src="https://images.squarespace-cdn.com/content/v1/68199b428e15984fb36bb76c/9fa68d10-954f-4528-85f0-91df0cecb667/logo.png"
+      alt="Mimojo logo"
+      style="height:32px;width:auto;display:block;border-radius:4px;background:#fff;padding:2px 6px" />
+    <h1>B2B Scaffold Console — Human in the Loop</h1>
+    <span class="session" id="sessionLabel">no session</span>
+    <button class="secondary" id="resetBtn" style="width:auto">Reset</button>
+  </header>
 
-<main>
-  <!-- LEFT: controls -->
-  <aside class="left">
-    <button class="panel-toggle left" id="toggleLeft" title="Collapse left panel">‹</button>
-    <div class="panel-inner">
-    <h2>1. Project</h2>
-    <label>Project name</label>
-    <input id="projectName" placeholder="order-management-service" />
+  <main>
+    <!-- LEFT: controls -->
+    <aside class="left">
+      <button class="panel-toggle left" id="toggleLeft" title="Collapse left panel">‹</button>
+      <div class="panel-inner">
+        <h2>1. Project</h2>
+        <label>Project name</label>
+        <input id="projectName" placeholder="order-management-service" />
 
-    <h2>
-      2. Features
-      <span style="float:right">
-        <button id="pasteJsonBtn" class="secondary" style="width:auto;font-size:11px;padding:2px 8px">{ } paste JSON</button>
-        <button id="addFeature" class="secondary" style="width:auto;font-size:11px;padding:2px 8px">+ add</button>
-      </span>
-    </h2>
+        <h2>2. Features</h2>
 
-    <div id="jsonPasteWrap" style="display:none;margin-bottom:10px">
-      <label>Paste full payload <code>{ projectName, features:[...] }</code></label>
-      <textarea id="jsonPaste" style="min-height:140px" placeholder='{
-  "projectName": "order-management-service",
-  "features": [
-    { "name": "create order", "refs": ["https://github.com/acme/order-svc/blob/main/src/order/order.controller.ts"] },
-    { "name": "cancel order" }
-  ]
-}'></textarea>
-      <div class="row" style="margin-top:6px">
-        <button id="loadJsonBtn" class="secondary" style="width:auto">↧ Load into form</button>
-        <button id="startFromJsonBtn" style="width:auto">▶ Start from JSON</button>
+        <!-- Cascading Selector UI -->
+        <div class="cascade-selector" id="cascadeSelector">
+
+          <!-- Enrollment -->
+          <div class="cascade-template-row enrollment" id="cascadeEnrollment">
+            <div class="cascade-header" onclick="toggleCascadeRow('enrollment')">
+              <div class="cascade-toggle-icon enrollment" id="iconEnrollment">✓</div>
+              <div>
+                <div class="cascade-title">Enrollment</div>
+                <div class="cascade-subtitle">Card enroll / unenroll / bulk file upload</div>
+              </div>
+            </div>
+            <div class="cascade-body">
+              <div class="cascade-option-group">
+                <div class="cascade-option-label">Select Type</div>
+                <div class="cascade-pills" id="enrollTypePills">
+                  <div class="cascade-pill enrollment-pill" data-group="enrollment" data-type="api" onclick="selectType(this)">API</div>
+                  <div class="cascade-pill enrollment-pill" data-group="enrollment" data-type="file" onclick="selectType(this)">File Upload</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transaction -->
+          <div class="cascade-template-row transaction" id="cascadeTransaction">
+            <div class="cascade-header" onclick="toggleCascadeRow('transaction')">
+              <div class="cascade-toggle-icon transaction" id="iconTransaction">✓</div>
+              <div>
+                <div class="cascade-title">Transaction</div>
+                <div class="cascade-subtitle">Payouts, appeals, receipts, cards</div>
+              </div>
+            </div>
+            <div class="cascade-body">
+              <div class="cascade-option-group">
+                <div class="cascade-option-label">Select Type</div>
+                <div class="cascade-pills" id="transactionTypePills">
+                  <div class="cascade-pill transaction-pill" data-group="transaction" data-type="api" onclick="selectType(this)">API</div>
+                  <div class="cascade-pill transaction-pill" data-group="transaction" data-type="file" onclick="selectType(this)">File Upload</div>
+                </div>
+              </div>
+              <!-- Card Scheme sub-option (only for API) -->
+              <div class="cascade-sub-group" id="schemeGroup" style="display:none">
+                <div class="cascade-option-label">Card Scheme</div>
+                <div class="cascade-pills" id="schemePills">
+                  <div class="cascade-pill scheme-pill" data-scheme="VISA" onclick="selectScheme(this)">VISA</div>
+                  <div class="cascade-pill scheme-pill" data-scheme="MC" onclick="selectScheme(this)">MC</div>
+                  <div class="cascade-pill scheme-pill" data-scheme="MC and VISA" onclick="selectScheme(this)">MC &amp; VISA</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Hidden legacy blocks for JSON load compat -->
+        <div id="templateBlocks" style="display:none"></div>
+
+        <button id="startBtn" style="margin-top:14px">▶ Start scaffolding</button>
+
+        <h2>3. Stage controls</h2>
+        <label>Feedback (only used when rejecting)</label>
+        <textarea id="feedback" placeholder="e.g. Use UUID for ids, not bigint"></textarea>
+
+        <div class="actions">
+          <button id="approveBtn" disabled>✓ Approve & next</button>
+          <button id="rejectBtn" class="danger" disabled>↻ Regenerate</button>
+        </div>
       </div>
-    </div>
+    </aside>
 
-    <div id="featureList"></div>
+    <!-- CENTER: stage output viewer -->
+    <section class="viewer">
+      <div class="tabs" id="tabs"></div>
+      <div id="tabContent">
+        <div class="empty">Start a session to see results.</div>
+      </div>
+    </section>
 
-    <button id="startBtn" style="margin-top:14px">▶ Start scaffolding</button>
+    <!-- RIGHT: pipeline timeline -->
+    <aside class="timeline">
+      <button class="panel-toggle right" id="toggleRight" title="Collapse right panel">›</button>
+      <div class="panel-inner">
+        <h2>Pipeline timeline</h2>
+        <div id="timeline" class="timeline-list"></div>
 
-    <h2>3. Stage controls</h2>
-    <label>Feedback (only used when rejecting)</label>
-    <textarea id="feedback" placeholder="e.g. Use UUID for ids, not bigint"></textarea>
+        <h2>
+          Past sessions
+          <button id="refreshSessionsBtn" class="secondary"
+            style="float:right;width:auto;font-size:11px;padding:2px 8px">↻ refresh</button>
+        </h2>
+        <div id="pastSessions" class="empty" style="padding:8px 0">Loading…</div>
 
-    <div class="actions">
-      <button id="approveBtn" disabled>✓ Approve & next</button>
-      <button id="rejectBtn" class="danger" disabled>↻ Regenerate</button>
-    </div>
-    </div>
-  </aside>
+        <h2>Session history</h2>
+        <div id="history" class="empty" style="padding:8px 0">No actions yet.</div>
+      </div>
+    </aside>
+  </main>
 
-  <!-- CENTER: stage output viewer -->
-  <section class="viewer">
-    <div class="tabs" id="tabs"></div>
-    <div id="tabContent"><div class="empty">Start a session to see results.</div></div>
-  </section>
+  <div id="toastBox"></div>
 
-  <!-- RIGHT: pipeline timeline -->
-  <aside class="timeline">
-    <button class="panel-toggle right" id="toggleRight" title="Collapse right panel">›</button>
-    <div class="panel-inner">
-      <h2>Pipeline timeline</h2>
-      <div id="timeline" class="timeline-list"></div>
+  <script>
+    mermaid.initialize({ startOnLoad: false, theme: 'default' });
 
-      <h2>
-        Past sessions
-        <button id="refreshSessionsBtn" class="secondary"
-                style="float:right;width:auto;font-size:11px;padding:2px 8px">↻ refresh</button>
-      </h2>
-      <div id="pastSessions" class="empty" style="padding:8px 0">Loading…</div>
+    const STAGES = ['functions', 'diagrams', 'docs', 'db', 'code', 'github', 'done'];
+    const STAGE_LABELS = {
+      functions: 'Extract functions',
+      diagrams: 'Architecture diagrams',
+      docs: 'API & project docs',
+      db: 'PostgreSQL schema',
+      code: 'NodeJS code',
+      github: 'Push to GitHub',
+      done: 'Complete',
+    };
+    const TABS = [
+      { id: 'functions', label: 'Functions', render: renderFunctions },
+      { id: 'github_refs', label: 'GitHub Refs', render: renderRefs },
+      { id: 'diagrams', label: 'Diagrams', render: renderDiagrams },
+      { id: 'api_docs', label: 'API Docs', render: renderApiDocs },
+      { id: 'project_docs', label: 'README', render: renderText('project_docs') },
+      { id: 'db_schema', label: 'DB Schema', render: renderText('db_schema') },
+      { id: 'code_files', label: 'Code', render: renderCode },
+      { id: 'repo_url', label: 'GitHub Repo', render: renderRepo },
+      { id: 'raw', label: 'Raw State', render: s => `<pre>${esc(JSON.stringify(s, null, 2))}</pre>` },
+    ];
 
-      <h2>Session history</h2>
-      <div id="history" class="empty" style="padding:8px 0">No actions yet.</div>
-    </div>
-  </aside>
-</main>
+    let session = { id: null, state: null };
+    let activeTab = 'functions';
+    /** Stage currently being executed by the server (set when we issue a request). */
+    let runningStage = null;
+    let pollTimer = null;
+    let activeCodeFiles = {};
+    let lastJumpedStage = null;
 
-<div id="toastBox"></div>
-
-<script>
-mermaid.initialize({ startOnLoad: false, theme: 'default' });
-
-const STAGES = ['functions', 'diagrams', 'docs', 'db', 'code', 'github', 'done'];
-const STAGE_LABELS = {
-  functions: 'Extract functions',
-  diagrams:  'Architecture diagrams',
-  docs:      'API & project docs',
-  db:        'PostgreSQL schema',
-  code:      'NodeJS code',
-  github:    'Push to GitHub',
-  done:      'Complete',
-};
-const TABS = [
-  { id:'functions',  label:'Functions',     render: renderFunctions  },
-  { id:'github_refs',label:'GitHub Refs',   render: renderRefs       },
-  { id:'diagrams',   label:'Diagrams',      render: renderDiagrams   },
-  { id:'api_docs',   label:'API Docs',      render: renderApiDocs    },
-  { id:'project_docs',label:'README',       render: renderText('project_docs')},
-  { id:'db_schema',  label:'DB Schema',     render: renderText('db_schema')  },
-  { id:'code_files', label:'Code',          render: renderCode       },
-  { id:'repo_url',   label:'GitHub Repo',   render: renderRepo       },
-  { id:'raw',        label:'Raw State',     render: s => `<pre>${esc(JSON.stringify(s, null, 2))}</pre>` },
-];
-
-let session = { id:null, state:null };
-let activeTab = 'functions';
-/** Stage currently being executed by the server (set when we issue a request). */
-let runningStage = null;
-
-// --------- API ---------
-async function api(path, method='GET', body) {
-  const res = await fetch(path, {
-    method,
-    headers: { 'Content-Type':'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await res.text();
-  let data; try { data = JSON.parse(text); } catch { data = text; }
-  if (!res.ok) throw new Error(data?.message || data?.error || text || res.statusText);
-  return data;
-}
-
-// --------- Feature rows ---------
-function addFeatureRow(name='', type='api') {
-  const el = document.createElement('div');
-  el.className = 'feature-row';
-
-  el.innerHTML = `
-    <div class="row-header">
-      <input class="f-name" placeholder="feature name (e.g. create order)" />
-      <button class="secondary remove" style="width:auto;font-size:11px;padding:2px 8px">✕</button>
-    </div>
-    <div style="margin-top:6px">
-      <label>Feature Type</label>
-      <select class="f-type">
-        <option value="api">API</option>
-        <option value="file">File Upload / Batch</option>
-      </select>
-    </div>
-  `;
-
-  el.querySelector('.f-name').value = name;
-  el.querySelector('.f-type').value = type;
-  el.querySelector('.remove').onclick = () => el.remove();
-
-  document.getElementById('featureList').appendChild(el);
-}
-
-function readFeatures() {
-  const rows = [...document.querySelectorAll('.feature-row')];
-  return rows.map(r => {
-    const name = r.querySelector('.f-name').value.trim();
-    const type = r.querySelector('.f-type').value;
-    return { name, type };
-  }).filter(f => f.name);
-}
-
-// --------- UI updates ---------
-function fmtMs(ms) {
-  if (ms == null) return '';
-  if (ms < 1000) return ms + ' ms';
-  const s = ms / 1000;
-  if (s < 60) return s.toFixed(1) + ' s';
-  return Math.floor(s / 60) + 'm ' + Math.round(s % 60) + 's';
-}
-
-function updateTimeline(state) {
-  const el = document.getElementById('timeline');
-  if (!state) { el.innerHTML = '<div class="empty" style="padding:8px 0">Idle.</div>'; return; }
-  const idx = STAGES.indexOf(state.stage);
-  const timings = state.stage_timings || {};
-  el.innerHTML = STAGES.filter(s => s !== 'done').map((stage, i) => {
-    let cls = '';
-    let meta = '';
-    let restartable = false;
-    const dur = timings[stage];
-
-    if (runningStage === stage) {
-      cls = 'active';
-      meta = `<span>running…</span><span class="tl-running"></span>`;
-    } else if (i < idx) {
-      cls = 'done';
-      meta = dur != null ? `Completed in ${fmtMs(dur)}` : 'Completed';
-      restartable = true;
-    } else if (stage === state.stage && state.stage !== 'done') {
-      cls = 'waiting';
-      meta = `⏸ Waiting for human approval${dur != null ? ` · ran in ${fmtMs(dur)}` : ''}`;
-      restartable = true;
-    } else {
-      meta = 'Pending';
+    function schedulePoll() {
+      if (pollTimer) return;
+      pollTimer = setTimeout(async () => {
+        pollTimer = null;
+        if (!session.id) return;
+        try {
+          const res = await api(`/scaffold/${session.id}`);
+          session.state = res;
+          refreshUI();
+        } catch (e) {
+          console.error("Poll error:", e);
+          schedulePoll(); // Retry on failure
+        }
+      }, 2000);
     }
-    const restartBtn = restartable && !runningStage
-      ? `<button class="secondary tl-restart" data-stage="${stage}" style="width:auto;font-size:10px;padding:2px 6px;margin-top:4px">↺ Restart from here</button>`
-      : '';
-    return `
+
+    function clearPoll() {
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = null;
+      }
+    }
+
+    // --------- API ---------
+    async function api(path, method = 'GET', body) {
+      const res = await fetch(path, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const text = await res.text();
+      let data; try { data = JSON.parse(text); } catch { data = text; }
+      if (!res.ok) throw new Error(data?.message || data?.error || text || res.statusText);
+      return data;
+    }
+
+    // --------- Cascading Feature Selector Logic ---------
+    const TEMPLATE_ORDER = ['enrollment', 'transaction'];
+    const TEMPLATE_LABELS = { enrollment: 'Enrollment', transaction: 'Transaction' };
+    let activeViewMode = 'both';
+    let collapsedGroups = new Set();
+
+    // State: which templates are enabled and what type is selected
+    const cascadeState = {
+      enrollment: { enabled: false, type: null },
+      transaction: { enabled: false, type: null, scheme: null },
+    };
+
+    function toggleCascadeRow(groupId) {
+      const row = document.getElementById('cascade' + groupId.charAt(0).toUpperCase() + groupId.slice(1));
+      const isSelected = row.classList.contains('selected');
+
+      if (isSelected) {
+        // Deselect
+        row.classList.remove('selected');
+        cascadeState[groupId].enabled = false;
+        cascadeState[groupId].type = null;
+        if (groupId === 'transaction') cascadeState[groupId].scheme = null;
+        // Clear active pill selections
+        row.querySelectorAll('.cascade-pill').forEach(p => p.classList.remove('active'));
+        if (groupId === 'transaction') {
+          document.getElementById('schemeGroup').style.display = 'none';
+        }
+      } else {
+        row.classList.add('selected');
+        cascadeState[groupId].enabled = true;
+      }
+    }
+
+    function selectType(pill) {
+      const groupId = pill.dataset.group;
+      const type = pill.dataset.type;
+      const pills = pill.parentElement.querySelectorAll('.cascade-pill');
+      pills.forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      cascadeState[groupId].type = type;
+
+      // Show/hide scheme selector for transaction API
+      if (groupId === 'transaction') {
+        const schemeGroup = document.getElementById('schemeGroup');
+        if (type === 'api') {
+          schemeGroup.style.display = 'block';
+        } else {
+          schemeGroup.style.display = 'none';
+          cascadeState.transaction.scheme = null;
+          document.querySelectorAll('#schemePills .cascade-pill').forEach(p => p.classList.remove('active'));
+        }
+      }
+    }
+
+    function selectScheme(pill) {
+      document.querySelectorAll('#schemePills .cascade-pill').forEach(p => p.classList.remove('active'));
+      pill.classList.add('active');
+      cascadeState.transaction.scheme = pill.dataset.scheme;
+    }
+
+    function readTemplateGroups() {
+      const groups = [];
+
+      if (cascadeState.enrollment.enabled && cascadeState.enrollment.type) {
+        const featureName = cascadeState.enrollment.type === 'api' ? 'enrollment' : 'bulk enrollment';
+        groups.push({
+          id: 'enrollment',
+          features: [{ name: featureName, type: cascadeState.enrollment.type }],
+        });
+      }
+
+      if (cascadeState.transaction.enabled && cascadeState.transaction.type) {
+        let featureName = 'transaction';
+        if (cascadeState.transaction.type === 'api' && cascadeState.transaction.scheme) {
+          featureName = `transaction (${cascadeState.transaction.scheme})`;
+        }
+        groups.push({
+          id: 'transaction',
+          features: [{
+            name: featureName,
+            type: cascadeState.transaction.type,
+            scheme: cascadeState.transaction.scheme || null,
+          }],
+        });
+      }
+
+      return groups;
+    }
+
+    // Legacy compat — no-ops
+    function addTemplateBlock() {}
+    function syncAddBlockButton() {}
+
+    // --------- UI updates ---------
+    function fmtMs(ms) {
+      if (ms == null) return '';
+      if (ms < 1000) return ms + ' ms';
+      const s = ms / 1000;
+      if (s < 60) return s.toFixed(1) + ' s';
+      return Math.floor(s / 60) + 'm ' + Math.round(s % 60) + 's';
+    }
+
+    function updateTimeline(state) {
+      const el = document.getElementById('timeline');
+      if (!state) { el.innerHTML = '<div class="empty" style="padding:8px 0">Idle.</div>'; return; }
+      const idx = STAGES.indexOf(state.stage);
+      const timings = state.stage_timings || {};
+      el.innerHTML = STAGES.filter(s => s !== 'done').map((stage, i) => {
+        let cls = '';
+        let meta = '';
+        let restartable = false;
+        const dur = timings[stage];
+
+        if (runningStage === stage) {
+          cls = 'active';
+          meta = `<span>running…</span><span class="tl-running"></span>`;
+        } else if (i < idx) {
+          cls = 'done';
+          meta = dur != null ? `Completed in ${fmtMs(dur)}` : 'Completed';
+          restartable = true;
+        } else if (stage === state.stage && state.stage !== 'done') {
+          cls = 'waiting';
+          meta = `⏸ Waiting for human approval${dur != null ? ` · ran in ${fmtMs(dur)}` : ''}`;
+          restartable = true;
+        } else {
+          meta = 'Pending';
+        }
+        const restartBtn = restartable && !runningStage
+          ? `<button class="secondary tl-restart" data-stage="${stage}" style="width:auto;font-size:10px;padding:2px 6px;margin-top:4px">↺ Restart from here</button>`
+          : '';
+        return `
       <div class="tl-item ${cls}">
         <div class="dot">${cls === 'done' ? '✓' : (i + 1)}</div>
         <div class="name">${STAGE_LABELS[stage]}</div>
@@ -381,28 +1174,28 @@ function updateTimeline(state) {
         ${restartBtn}
       </div>
     `;
-  }).join('') + (state.stage === 'done' ? `
+      }).join('') + (state.stage === 'done' ? `
     <div class="tl-item done">
       <div class="dot">✓</div>
       <div class="name">${STAGE_LABELS.done}</div>
       <div class="meta">Pipeline finished</div>
     </div>` : '');
 
-  // Wire up restart buttons
-  [...document.querySelectorAll('.tl-restart')].forEach(btn => {
-    btn.onclick = (e) => {
-      e.stopPropagation();
-      restartFrom(btn.dataset.stage);
-    };
-  });
-}
+      // Wire up restart buttons
+      [...document.querySelectorAll('.tl-restart')].forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          restartFrom(btn.dataset.stage);
+        };
+      });
+    }
 
-function updateHistory(history=[]) {
-  if (!history.length) {
-    document.getElementById('history').innerHTML = '<div class="empty">No actions yet.</div>';
-    return;
-  }
-  document.getElementById('history').innerHTML = history.map(h => `
+    function updateHistory(history = []) {
+      if (!history.length) {
+        document.getElementById('history').innerHTML = '<div class="empty">No actions yet.</div>';
+        return;
+      }
+      document.getElementById('history').innerHTML = history.map(h => `
     <details>
       <summary>
         ${h.approved ? '✓' : '↻'} <strong>${h.stage}</strong>
@@ -411,464 +1204,624 @@ function updateHistory(history=[]) {
       ${h.feedback ? `<div style="font-size:12px;margin-top:6px">${esc(h.feedback)}</div>` : ''}
     </details>
   `).join('');
-}
+    }
 
-function renderTabs() {
-  document.getElementById('tabs').innerHTML = TABS.map(t =>
-    `<div class="tab ${t.id === activeTab ? 'active' : ''}" data-id="${t.id}">${t.label}</div>`
-  ).join('');
-  [...document.querySelectorAll('.tab')].forEach(el => {
-    el.onclick = () => { activeTab = el.dataset.id; renderActiveTab(); };
-  });
-}
+    function renderTabs() {
+      document.getElementById('tabs').innerHTML = TABS.map(t =>
+        `<div class="tab ${t.id === activeTab ? 'active' : ''}" data-id="${t.id}">${t.label}</div>`
+      ).join('');
+      [...document.querySelectorAll('.tab')].forEach(el => {
+        el.onclick = () => { activeTab = el.dataset.id; renderActiveTab(); };
+      });
+    }
 
-function renderActiveTab() {
-  renderTabs();
-  const tab = TABS.find(t => t.id === activeTab);
-  document.getElementById('tabContent').innerHTML = session.state ? tab.render(session.state) : '<div class="empty">No data.</div>';
-  // re-run mermaid if diagrams tab — render each block individually so one failure
-  // doesn't break the rest, and show a helpful error + source on failure.
-  if (activeTab === 'diagrams') {
-    queueMicrotask(async () => {
-      const nodes = [...document.querySelectorAll('.mermaid-wrap .mermaid')];
-      for (let i = 0; i < nodes.length; i++) {
-        const node = nodes[i];
-        const src = node.textContent;
-        try {
-          const id = `mmd-${Date.now()}-${i}`;
-          const { svg } = await mermaid.render(id, src);
-          node.innerHTML = svg;
-        } catch (err) {
-          node.innerHTML = `
+    function renderViewToggle(groups) {
+      if (!groups || groups.length <= 1) return '';
+      const modes = [
+        { id: 'enrollment', label: 'Enrollment' },
+        { id: 'transaction', label: 'Transaction' },
+        { id: 'both', label: 'Both' },
+      ];
+      const btns = modes.map(m =>
+        `<button class="vt-btn ${activeViewMode === m.id ? 'active' : ''}" data-mode="${m.id}">${m.label}</button>`
+      ).join('');
+      return `<div class="view-toggle" id="viewToggle">${btns}</div>`;
+    }
+
+    function wireViewToggle() {
+      document.querySelectorAll('.vt-btn').forEach(btn => {
+        btn.onclick = () => {
+          activeViewMode = btn.dataset.mode;
+          renderActiveTab();
+        };
+      });
+    }
+
+    function groupCard(groupId, innerHtml) {
+      const collapsed = collapsedGroups.has(groupId);
+      return `
+    <div class="group-card ${groupId}" data-gid="${groupId}">
+      <div class="group-card-header" data-collapse="${groupId}">
+        <span class="badge">${TEMPLATE_LABELS[groupId]}</span>
+         ${TEMPLATE_LABELS[groupId]} Output
+        <button class="collapse-btn">${collapsed ? '▸ expand' : '▾ collapse'}</button>
+      </div>
+      <div class="group-card-body${collapsed ? ' collapsed' : ''}">${innerHtml}</div>
+    </div>`;
+    }
+
+    function withGroupLayout(s, singleRenderFn, groupRenderFn) {
+      const groups = s.template_groups ?? [];
+      const toggle = renderViewToggle(groups);
+      if (groups.length <= 1) {
+        return toggle + singleRenderFn(s); // existing behavior
+      }
+      const visibleGroups = activeViewMode === 'both'
+        ? groups
+        : groups.filter(g => g.id === activeViewMode);
+      const cards = visibleGroups.map(g => {
+        const inner = groupRenderFn(g);
+        return activeViewMode === 'both' ? groupCard(g.id, inner) : inner;
+      }).join('');
+
+      queueMicrotask(() => {
+        wireViewToggle();
+        document.querySelectorAll('[data-collapse]').forEach(el => {
+          el.onclick = () => {
+            const id = el.dataset.collapse;
+            if (collapsedGroups.has(id)) collapsedGroups.delete(id);
+            else collapsedGroups.add(id);
+            renderActiveTab();
+          };
+        });
+      });
+      return toggle + cards;
+    }
+
+    function renderActiveTab() {
+      renderTabs();
+      const tab = TABS.find(t => t.id === activeTab);
+      document.getElementById('tabContent').innerHTML = session.state ? tab.render(session.state) : '<div class="empty">No data.</div>';
+      if (activeTab === 'diagrams') {
+        // Disable buttons while rendering diagrams
+        document.getElementById('approveBtn').disabled = true;
+        document.getElementById('rejectBtn').disabled = true;
+
+        queueMicrotask(async () => {
+          const nodes = [...document.querySelectorAll('.mermaid-wrap .mermaid')];
+          for (let i = 0; i < nodes.length; i++) {
+            const node = nodes[i];
+            const src = node.textContent;
+            try {
+              const id = `mmd-${Date.now()}-${i}`;
+              const { svg } = await mermaid.render(id, src);
+              node.innerHTML = svg;
+            } catch (err) {
+              node.innerHTML = `
             <div style="background:#fee2e2;color:#7f1d1d;padding:10px;border-radius:6px;border:1px solid #fca5a5">
               <strong>Mermaid render error</strong>
               <div style="margin-top:6px;font-family:monospace;font-size:12px;white-space:pre-wrap">${esc(err?.message || String(err))}</div>
               <details style="margin-top:6px"><summary>Show source</summary><pre style="margin-top:6px;background:#020617;color:#e2e8f0">${esc(src)}</pre></details>
             </div>`;
-        }
+            }
+          }
+          [...document.querySelectorAll('.mermaid-wrap')].forEach(wrap => {
+            const title = wrap.dataset.title || 'diagram';
+            const filename = wrap.dataset.filename || 'diagram';
+            wrap.querySelector('.mmd-fullscreen')?.addEventListener('click', () => openFullscreen(wrap, title, filename));
+            wrap.querySelector('.mmd-download-svg')?.addEventListener('click', () => downloadSvg(wrap, filename));
+            wrap.querySelector('.mmd-download-pdf')?.addEventListener('click', () => downloadPdf(wrap, filename));
+          });
+
+          updateButtonStatus();
+        });
+      } else {
+        updateButtonStatus();
       }
-      // Wire up per-diagram toolbar buttons (Fullscreen / SVG / PDF)
-      [...document.querySelectorAll('.mermaid-wrap')].forEach(wrap => {
-        const title    = wrap.dataset.title    || 'diagram';
-        const filename = wrap.dataset.filename || 'diagram';
-        wrap.querySelector('.mmd-fullscreen')?.addEventListener('click', () => openFullscreen(wrap, title, filename));
-        wrap.querySelector('.mmd-download-svg')?.addEventListener('click', () => downloadSvg(wrap, filename));
-        wrap.querySelector('.mmd-download-pdf')?.addEventListener('click', () => downloadPdf(wrap, filename));
-      });
-    });
-  }
-}
+    }
 
-// --------- Tab renderers ---------
-const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    // --------- Tab renderers ---------
+    const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 
-function renderFunctions(s) {
-  if (!s.functions_list) return '<div class="empty">Not yet generated.</div>';
-  return `<pre>${esc(JSON.stringify(s.functions_list, null, 2))}</pre>`;
-}
+    function renderFunctions(s) {
+      return withGroupLayout(
+        s,
+        st => st.functions_list ? `<pre>${esc(JSON.stringify(st.functions_list, null, 2))}</pre>` : '<div class="empty">Not yet generated.</div>',
+        g => g.output?.functions_list ? `<pre>${esc(JSON.stringify(g.output.functions_list, null, 2))}</pre>` : '<div class="empty">Not yet generated.</div>'
+      );
+    }
 
-function renderRefs(s) {
-  if (!s.github_refs?.length) return '<div class="empty">No GitHub references.</div>';
-  return `<table style="width:100%;border-collapse:collapse">
-    <thead><tr style="text-align:left">
-      <th style="padding:6px">Feature</th><th>Repo</th><th>Path</th><th>Link</th>
-    </tr></thead>
-    <tbody>
-    ${s.github_refs.map(r => `<tr style="border-top:1px solid var(--border)">
-      <td style="padding:6px">${esc(r.feature)}</td>
-      <td>${esc(r.repo)}</td>
-      <td style="font-family:monospace;font-size:11px">${esc(r.path)}</td>
-      <td><a href="${esc(r.url)}" target="_blank">open</a></td>
-    </tr>`).join('')}
-    </tbody></table>`;
-}
+    function renderRefs(s) {
+      const tableHtml = (refs) => {
+        if (!refs?.length) return '<div class="empty">No GitHub references.</div>';
+        return `<table style="width:100%;border-collapse:collapse">
+      <thead><tr style="text-align:left">
+        <th style="padding:6px">Feature</th><th>Repo</th><th>Path</th><th>Link</th>
+      </tr></thead>
+      <tbody>
+      ${refs.map(r => `<tr style="border-top:1px solid var(--border)">
+        <td style="padding:6px">${esc(r.feature)}</td>
+        <td>${esc(r.repo)}</td>
+        <td style="font-family:monospace;font-size:11px">${esc(r.path)}</td>
+        <td><a href="${esc(r.url)}" target="_blank">open</a></td>
+      </tr>`).join('')}
+      </tbody></table>`;
+      };
+      return withGroupLayout(
+        s,
+        st => tableHtml(st.github_refs),
+        g => tableHtml(g.output?.github_refs)
+      );
+    }
 
-function renderDiagrams(s) {
-  if (!s.diagrams) return '<div class="empty">Not yet generated.</div>';
-  // Extract every mermaid block: ```mermaid ... ```
-  const md = s.diagrams;
-  const blocks = [...md.matchAll(/```mermaid\s+([\s\S]*?)```/g)].map(m => m[1]);
-  if (!blocks.length) return `<pre>${esc(md)}</pre>`;
-  // Pull the heading (### or ##) immediately before each mermaid block, if any,
-  // so users see what the diagram represents.
-  const headings = [];
-  const re = /(^|\n)(#{2,4})\s+([^\n]+)\s*\n+```mermaid/g;
-  let m;
-  while ((m = re.exec(md)) !== null) headings.push(m[3].trim());
-  return blocks.map((code, i) => {
-    const cleaned = sanitizeMermaid(code);
-    const title = headings[i] || `Diagram ${i + 1}`;
-    const safeName = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `diagram-${i + 1}`;
-    return `
-      <h2>${esc(title)}</h2>
-      <div class="mermaid-wrap" data-idx="${i}" data-title="${esc(title)}" data-filename="${esc(safeName)}">
-        <div class="mermaid-toolbar">
-          <button class="mmd-fullscreen" title="Fullscreen">⛶ Fullscreen</button>
-          <button class="mmd-download-svg" title="Download SVG">⤓ SVG</button>
-          <button class="mmd-download-pdf" title="Download PDF">⤓ PDF</button>
+    function renderDiagrams(s) {
+      const diagHtml = (diagramsStr, groupId = 'common') => {
+        if (!diagramsStr) return '<div class="empty">Not yet generated.</div>';
+        const blocks = [...diagramsStr.matchAll(/```mermaid\s+([\s\S]*?)```/g)].map(m => m[1]);
+        if (!blocks.length) return `<pre>${esc(diagramsStr)}</pre>`;
+        const headings = [];
+        const re = /(^|\n)(#{2,4})\s+([^\n]+)\s*\n+```mermaid/g;
+        let m;
+        while ((m = re.exec(diagramsStr)) !== null) headings.push(m[3].trim());
+        return blocks.map((code, i) => {
+          const cleaned = sanitizeMermaid(code);
+          const title = headings[i] || `Diagram ${i + 1}`;
+          const safeName = `${groupId}-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `diagram-${i + 1}`}`;
+          return `
+        <h2>${esc(title)}</h2>
+        <div class="mermaid-wrap" data-idx="${i}" data-title="${esc(title)}" data-filename="${esc(safeName)}">
+          <div class="mermaid-toolbar">
+            <button class="mmd-fullscreen" title="Fullscreen">⛶ Fullscreen</button>
+            <button class="mmd-download-svg" title="Download SVG">⤓ SVG</button>
+            <button class="mmd-download-pdf" title="Download PDF">⤓ PDF</button>
+          </div>
+          <div class="mermaid">${esc(cleaned)}</div>
+          <details class="mermaid-source"><summary>Source</summary><pre>${esc(cleaned)}</pre></details>
         </div>
-        <div class="mermaid">${esc(cleaned)}</div>
-        <details class="mermaid-source"><summary>Source</summary><pre>${esc(cleaned)}</pre></details>
+      `;
+        }).join('') + `<details><summary>Raw markdown</summary><pre>${esc(diagramsStr)}</pre></details>`;
+      };
+      return withGroupLayout(
+        s,
+        st => diagHtml(st.diagrams),
+        g => diagHtml(g.output?.diagrams, g.id)
+      );
+    }
+
+    /**
+     * Drop `break` lines from a sequenceDiagram block when they are NOT directly
+     * inside a `loop`. Mermaid only allows `break` as a direct child of `loop`;
+     * it throws "Syntax error" if it's nested inside an `alt`/`else`/`opt`.
+     */
+    function stripIllegalSequenceBreaks(code) {
+      const lines = code.split('\n');
+      const stack = []; // stack of block kinds: 'loop' | 'alt' | 'opt' | 'par' | 'critical'
+      const out = [];
+      for (const line of lines) {
+        const trimmed = line.trim();
+        const opener = trimmed.match(/^(loop|alt|opt|par|critical)\b/);
+        if (opener) {
+          stack.push(opener[1]);
+          out.push(line);
+          continue;
+        }
+        if (/^end\b/.test(trimmed)) {
+          stack.pop();
+          out.push(line);
+          continue;
+        }
+        if (/^break\b/.test(trimmed)) {
+          const innermost = stack[stack.length - 1];
+          if (innermost !== 'loop') continue; // drop the illegal break
+        }
+        out.push(line);
+      }
+      return out.join('\n');
+    }
+
+    /**
+     * Best-effort fix-ups for the most common Mermaid breakages produced by the LLM,
+     * so a slightly-malformed block still renders instead of showing the syntax-error bomb.
+     */
+    function sanitizeMermaid(code) {
+      let c = code;
+      // \n inside labels — Mermaid does not interpret it; convert to <br/>.
+      c = c.replace(/\\n/g, '<br/>');
+      // Smart quotes → straight quotes
+      c = c.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
+      // Em / en dashes → hyphen
+      c = c.replace(/[\u2013\u2014]/g, '-');
+      // Stray `return` keyword inside sequenceDiagram blocks (not valid Mermaid)
+      if (/^\s*sequenceDiagram/m.test(c)) {
+        c = c.replace(/^\s*return\s*$/gm, '');
+        // `participant X as "Display Name"` → `participant X as Display Name`
+        // (mermaid 10.x sequenceDiagram does not accept quoted display names)
+        c = c.replace(
+          /^(\s*participant\s+[A-Za-z0-9_]+\s+as\s+)"([^"\n]+)"\s*$/gm,
+          (_full, head, name) => `${head}${name}`,
+        );
+        // `participant "Display Name"` (no alias) → drop the quotes
+        c = c.replace(
+          /^(\s*participant\s+)"([^"\n]+)"\s*$/gm,
+          (_full, head, name) => `${head}${name.replace(/[^A-Za-z0-9_]/g, '_')} as ${name}`,
+        );
+        // `break` is only valid as a direct child of `loop`. If it appears inside
+        // an `alt`/`else`/`opt`, drop it — the loop will iterate naturally and the
+        // surrounding alt block conveys the branch outcome.
+        c = stripIllegalSequenceBreaks(c);
+      }
+      // Subgraph naming sanitization (matches subgraph ID [Label], subgraph ID ["Label"], subgraph ID, etc.)
+      c = c.replace(/subgraph\s+([A-Za-z0-9_]+)(?:\s*(?:\[|\["|\(")?([^\]\)\"\n]+)(?:\]|"\]|\))?)?/g, (m, id, title) => {
+        if (!title) return `subgraph ${id}`;
+        return `subgraph ${id} ["${title.trim()}"]`;
+      });
+
+      // Flowchart shape label quoting fix: ensures any node label with spaces/quotes is wrapped in exactly one pair of double quotes
+      function sanitizeLabel(text) {
+        let clean = text.trim();
+        if (clean.startsWith('"') && clean.endsWith('"')) {
+          clean = clean.slice(1, -1);
+        }
+        clean = clean.replace(/"/g, '');
+        return `"${clean}"`;
+      }
+
+      c = c.replace(/\b([A-Za-z0-9_]+)\[\(([\s\S]*?)\)\]/g, (m, id, inner) => `${id}[(${sanitizeLabel(inner)})]`);
+      c = c.replace(/\b([A-Za-z0-9_]+)\{\{([\s\S]*?)\}\}/g, (m, id, inner) => `${id}{{${sanitizeLabel(inner)}}}`);
+      c = c.replace(/\b([A-Za-z0-9_]+)\{([^\}\{]*?)\}/g, (m, id, inner) => `${id}{${sanitizeLabel(inner)}}`);
+      c = c.replace(/\b([A-Za-z0-9_]+)\(\(([\s\S]*?)\)\)/g, (m, id, inner) => `${id}((${sanitizeLabel(inner)}))`);
+      c = c.replace(/\b([A-Za-z0-9_]+)\(\[([\s\S]*?)\]\)/g, (m, id, inner) => `${id}([${sanitizeLabel(inner)}])`);
+      c = c.replace(/\b([A-Za-z0-9_]+)\[\[([\s\S]*?)\]\]/g, (m, id, inner) => `${id}[[${sanitizeLabel(inner)}]]`);
+      c = c.replace(/\b([A-Za-z0-9_]+)\[([\/\\\\])([\s\S]*?)([\/\\\\])\]/g, (m, id, op, inner, cl) => `${id}[${op}${sanitizeLabel(inner)}${cl}]`);
+      c = c.replace(/\b([A-Za-z0-9_]+)\(([^)\(]*?)\)/g, (m, id, inner) => {
+        if (/^(subgraph|click|style|classDef|class|linkStyle)$/i.test(id)) return m;
+        if (/^[\[\{]/.test(inner.trim())) return m;
+        return `${id}(${sanitizeLabel(inner)})`;
+      });
+      c = c.replace(/\b([A-Za-z0-9_]+)\[([^\]\[]*?)\]/g, (m, id, inner) => {
+        if (/^(subgraph)$/i.test(id)) return m;
+        if (/^[(\{\s]/.test(inner.trim())) return m;
+        return `${id}[${sanitizeLabel(inner)}]`;
+      });
+
+      // Flowchart edge label quoting fix: ensures vertical-bar edge labels containing parentheses or spaces are wrapped in quotes
+      c = c.replace(/([-=~\.]+>?)\s*\|([^|]+)\|/g, (m, arrow, label) => `${arrow}|"${label.replace(/"/g, '').trim()}"|`);
+
+      return c;
+    }
+
+    function renderApiDocs(s) {
+      const docsHtml = (apiDocsStr, suffix = 'main') => {
+        if (!apiDocsStr) return '<div class="empty">Not yet generated.</div>';
+        const fence = apiDocsStr.match(/```(?:ya?ml|json)?\s*\n([\s\S]*?)```/i);
+        const candidate = (fence ? fence[1] : apiDocsStr.replace(/^##\s+OpenAPI Spec\s*/i, '')).trim();
+
+        let spec = null;
+        try {
+          spec = (window.jsyaml && window.jsyaml.load(candidate)) || null;
+          if (!spec || typeof spec !== 'object') spec = JSON.parse(candidate);
+        } catch (_e) {
+          try { spec = JSON.parse(candidate); } catch { /* ignore */ }
+        }
+
+        if (!spec) {
+          return '<div class="empty">Not yet generated.</div>';
+        }
+
+        const frameId = `swaggerFrame_${suffix}`;
+        const rawId = `swaggerRaw_${suffix}`;
+        const toggleId = `toggleSwaggerRaw_${suffix}`;
+
+        const html = `
+      <div class="row" style="margin-bottom:10px">
+        <button class="secondary" id="${toggleId}" style="width:auto">View raw</button>
+      </div>
+      <iframe id="${frameId}" class="swagger-frame" sandbox="allow-scripts allow-same-origin" title="OpenAPI documentation"></iframe>
+      <div id="${rawId}" style="display:none"><pre>${esc(apiDocsStr)}</pre></div>
+    `;
+
+        setTimeout(() => {
+          const frame = document.getElementById(frameId);
+          const rawBox = document.getElementById(rawId);
+          const toggle = document.getElementById(toggleId);
+          if (!frame || !rawBox || !toggle) return;
+
+          toggle.onclick = () => {
+            const showRaw = frame.style.display !== 'none';
+            frame.style.display = showRaw ? 'none' : 'block';
+            rawBox.style.display = showRaw ? 'block' : 'none';
+            toggle.textContent = showRaw ? 'View Swagger UI' : 'View raw';
+          };
+
+          const specJson = JSON.stringify(spec).replace(/</g, '\\u003c');
+          const doc = `<!doctype html>
+  <html><head>
+  <meta charset="utf-8">
+  <title>API Docs</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
+  <style>html,body{margin:0;padding:0;background:#fff;}#swagger{padding:8px;}</style>
+  </head><body>
+  <div id="swagger"></div>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"><\/script>
+  <script>
+    window.addEventListener('load', function () {
+      var spec = ${specJson};
+      SwaggerUIBundle({
+        spec: spec,
+        domNode: document.getElementById('swagger'),
+        presets: [SwaggerUIBundle.presets.apis],
+        layout: 'BaseLayout',
+        docExpansion: 'list',
+        tryItOutEnabled: false,
+        defaultModelsExpandDepth: -1
+      });
+      function resize(){
+        var h = document.documentElement.scrollHeight;
+        parent.postMessage({ type:'swagger-resize-${suffix}', height: h }, '*');
+      }
+      new MutationObserver(resize).observe(document.body, { childList:true, subtree:true });
+      setTimeout(resize, 400);
+    });
+  <\/script>
+  </body></html>`;
+
+          frame.srcdoc = doc;
+        });
+
+        return html;
+      };
+
+      return withGroupLayout(
+        s,
+        st => docsHtml(st.api_docs, 'main'),
+        g => docsHtml(g.output?.api_docs, g.id)
+      );
+    }
+
+    function renderText(field) {
+      return s => {
+        return withGroupLayout(
+          s,
+          st => st[field] ? `<pre>${esc(st[field])}</pre>` : '<div class="empty">Not yet generated.</div>',
+          g => g.output?.[field] ? `<pre>${esc(g.output[field])}</pre>` : '<div class="empty">Not yet generated.</div>'
+        );
+      };
+    }
+
+    function renderCode(s) {
+      const codeHtml = (codeFiles, suffix = 'main') => {
+        if (!codeFiles || !Object.keys(codeFiles).length) return '<div class="empty">Not yet generated.</div>';
+        const files = Object.keys(codeFiles);
+        let active = activeCodeFiles[suffix];
+        if (!active || !files.includes(active)) {
+          active = files[0];
+          activeCodeFiles[suffix] = active;
+        }
+        const previewId = `codePreview_${suffix}`;
+        const listId = `codeList_${suffix}`;
+
+        // Keep track of scroll positions before re-rendering
+        let oldListScroll = 0;
+        let oldPreviewScroll = 0;
+        const oldList = document.getElementById(listId);
+        if (oldList) {
+          const ul = oldList.querySelector('ul');
+          if (ul) oldListScroll = ul.scrollTop;
+          const pre = document.getElementById(previewId);
+          if (pre) oldPreviewScroll = pre.scrollTop;
+        }
+
+        setTimeout(() => {
+          const listContainer = document.getElementById(listId);
+          if (!listContainer) return;
+          
+          // Restore scroll positions
+          const ul = listContainer.querySelector('ul');
+          if (ul) ul.scrollTop = oldListScroll;
+          const pre = document.getElementById(previewId);
+          if (pre) pre.scrollTop = oldPreviewScroll;
+
+          [...listContainer.querySelectorAll('li')].forEach(li => {
+            li.onclick = () => {
+              activeCodeFiles[suffix] = li.dataset.path;
+              listContainer.querySelectorAll('li').forEach(x => x.classList.remove('active'));
+              li.classList.add('active');
+              
+              const targetPre = document.getElementById(previewId);
+              if (targetPre) {
+                targetPre.textContent = codeFiles[li.dataset.path];
+                targetPre.scrollTop = 0; // reset scroll to top on manual file switch
+              }
+            };
+          });
+        });
+
+        return `
+      <div class="file-list" id="${listId}">
+        <ul>${files.map(f =>
+          `<li data-path="${esc(f)}" class="${f === active ? 'active' : ''}">${esc(f)}</li>`
+        ).join('')}</ul>
+        <pre id="${previewId}">${esc(codeFiles[active])}</pre>
       </div>
     `;
-  }).join('') + `<details><summary>Raw markdown</summary><pre>${esc(md)}</pre></details>`;
-}
-
-/**
- * Drop `break` lines from a sequenceDiagram block when they are NOT directly
- * inside a `loop`. Mermaid only allows `break` as a direct child of `loop`;
- * it throws "Syntax error" if it's nested inside an `alt`/`else`/`opt`.
- */
-function stripIllegalSequenceBreaks(code) {
-  const lines = code.split('\n');
-  const stack = []; // stack of block kinds: 'loop' | 'alt' | 'opt' | 'par' | 'critical'
-  const out = [];
-  for (const line of lines) {
-    const trimmed = line.trim();
-    const opener = trimmed.match(/^(loop|alt|opt|par|critical)\b/);
-    if (opener) {
-      stack.push(opener[1]);
-      out.push(line);
-      continue;
-    }
-    if (/^end\b/.test(trimmed)) {
-      stack.pop();
-      out.push(line);
-      continue;
-    }
-    if (/^break\b/.test(trimmed)) {
-      const innermost = stack[stack.length - 1];
-      if (innermost !== 'loop') continue; // drop the illegal break
-    }
-    out.push(line);
-  }
-  return out.join('\n');
-}
-
-/**
- * Best-effort fix-ups for the most common Mermaid breakages produced by the LLM,
- * so a slightly-malformed block still renders instead of showing the syntax-error bomb.
- */
-function sanitizeMermaid(code) {
-  let c = code;
-  // \n inside labels — Mermaid does not interpret it; convert to <br/>.
-  c = c.replace(/\\n/g, '<br/>');
-  // Smart quotes → straight quotes
-  c = c.replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
-  // Em / en dashes → hyphen
-  c = c.replace(/[\u2013\u2014]/g, '-');
-  // Stray `return` keyword inside sequenceDiagram blocks (not valid Mermaid)
-  if (/^\s*sequenceDiagram/m.test(c)) {
-    c = c.replace(/^\s*return\s*$/gm, '');
-    // `participant X as "Display Name"` → `participant X as Display Name`
-    // (mermaid 10.x sequenceDiagram does not accept quoted display names)
-    c = c.replace(
-      /^(\s*participant\s+[A-Za-z0-9_]+\s+as\s+)"([^"\n]+)"\s*$/gm,
-      (_full, head, name) => `${head}${name}`,
-    );
-    // `participant "Display Name"` (no alias) → drop the quotes
-    c = c.replace(
-      /^(\s*participant\s+)"([^"\n]+)"\s*$/gm,
-      (_full, head, name) => `${head}${name.replace(/[^A-Za-z0-9_]/g, '_')} as ${name}`,
-    );
-    // `break` is only valid as a direct child of `loop`. If it appears inside
-    // an `alt`/`else`/`opt`, drop it — the loop will iterate naturally and the
-    // surrounding alt block conveys the branch outcome.
-    c = stripIllegalSequenceBreaks(c);
-  }
-  // `subgraph "Quoted Title"` → `subgraph quoted_title ["Quoted Title"]`
-  c = c.replace(/^(\s*)subgraph\s+"([^"]+)"\s*$/gm, (_full, indent, title) => {
-    const id = title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'group';
-    return `${indent}subgraph ${id} ["${title}"]`;
-  });
-  // `subgraph Some Words With Spaces` → `subgraph some_words_with_spaces ["Some Words With Spaces"]`
-  c = c.replace(/^(\s*)subgraph\s+([^\[\n"][^\n]*)$/gm, (full, indent, rest) => {
-    const trimmed = rest.trim();
-    // Already has bracketed title? leave alone.
-    if (/\[/.test(trimmed)) return full;
-    // Single bare identifier (no spaces or special chars)? leave alone.
-    if (/^[A-Za-z0-9_]+$/.test(trimmed)) return full;
-    const id = trimmed.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'group';
-    return `${indent}subgraph ${id} ["${trimmed}"]`;
-  });
-  return c;
-}
-
-function renderText(field) {
-  return s => s[field] ? `<pre>${esc(s[field])}</pre>` : '<div class="empty">Not yet generated.</div>';
-}
-
-function renderApiDocs(s) {
-  if (!s.api_docs) return '<div class="empty">Not yet generated.</div>';
-
-  // Pull the OpenAPI document out of the LLM's markdown.
-  const raw = s.api_docs;
-  const fence = raw.match(/```(?:ya?ml|json)?\s*\n([\s\S]*?)```/i);
-  const candidate = (fence ? fence[1] : raw.replace(/^##\s+OpenAPI Spec\s*/i, '')).trim();
-
-  let spec = null;
-  try {
-    spec = (window.jsyaml && window.jsyaml.load(candidate)) || null;
-    if (!spec || typeof spec !== 'object') spec = JSON.parse(candidate);
-  } catch (_e) {
-    try { spec = JSON.parse(candidate); } catch { /* ignore */ }
-  }
-
-  const html = `
-    <div class="row" style="margin-bottom:10px">
-      <button class="secondary" id="toggleSwaggerRaw" style="width:auto">View raw</button>
-    </div>
-    <iframe id="swaggerFrame" class="swagger-frame" sandbox="allow-scripts allow-same-origin" title="OpenAPI documentation"></iframe>
-    <div id="swaggerRaw" style="display:none"><pre>${esc(s.api_docs)}</pre></div>
-  `;
-
-  setTimeout(() => {
-    const frame   = document.getElementById('swaggerFrame');
-    const rawBox  = document.getElementById('swaggerRaw');
-    const toggle  = document.getElementById('toggleSwaggerRaw');
-
-    toggle.onclick = () => {
-      const showRaw = frame.style.display !== 'none';
-      frame.style.display  = showRaw ? 'none'  : 'block';
-      rawBox.style.display = showRaw ? 'block' : 'none';
-      toggle.textContent   = showRaw ? 'View Swagger UI' : 'View raw';
-    };
-
-    if (!spec) {
-      frame.style.display = 'none';
-      rawBox.style.display = 'block';
-      toggle.textContent = 'View Swagger UI';
-      return;
-    }
-
-    // Build a self-contained HTML document for the iframe so swagger-ui owns
-    // its CSS, layout, and scripts — no parent-page interference possible.
-    const specJson = JSON.stringify(spec).replace(/</g, '\\u003c');
-    const doc = `<!doctype html>
-<html><head>
-<meta charset="utf-8">
-<title>API Docs</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css">
-<style>html,body{margin:0;padding:0;background:#fff;}#swagger{padding:8px;}</style>
-</head><body>
-<div id="swagger"></div>
-<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"><\/script>
-<script>
-  window.addEventListener('load', function () {
-    var spec = ${specJson};
-    SwaggerUIBundle({
-      spec: spec,
-      domNode: document.getElementById('swagger'),
-      presets: [SwaggerUIBundle.presets.apis],
-      layout: 'BaseLayout',
-      docExpansion: 'list',
-      tryItOutEnabled: false,
-      defaultModelsExpandDepth: -1
-    });
-    // Resize iframe to fit content
-    function resize(){
-      var h = document.documentElement.scrollHeight;
-      parent.postMessage({ type:'swagger-resize', height: h }, '*');
-    }
-    new MutationObserver(resize).observe(document.body, { childList:true, subtree:true });
-    setTimeout(resize, 400);
-  });
-<\/script>
-</body></html>`;
-
-    frame.srcdoc = doc;
-  });
-
-  return html;
-}
-
-function renderCode(s) {
-  if (!s.code_files || !Object.keys(s.code_files).length) return '<div class="empty">Not yet generated.</div>';
-  const files = Object.keys(s.code_files);
-  let active = files[0];
-  setTimeout(() => {
-    [...document.querySelectorAll('.file-list li')].forEach(li => {
-      li.onclick = () => {
-        active = li.dataset.path;
-        document.querySelectorAll('.file-list li').forEach(x => x.classList.remove('active'));
-        li.classList.add('active');
-        document.getElementById('codePreview').textContent = s.code_files[active];
       };
-    });
-  });
-  return `
-    <div class="file-list">
-      <ul>${files.map((f, i) =>
-        `<li data-path="${esc(f)}" class="${i === 0 ? 'active' : ''}">${esc(f)}</li>`
-      ).join('')}</ul>
-      <pre id="codePreview">${esc(s.code_files[active])}</pre>
-    </div>
-    ${s.validation ? `<p style="margin-top:10px">Validation: ${s.validation.passed ? '✅ passed' : '❌ failed: ' + (s.validation.errors||[]).join(', ')}</p>` : ''}
-  `;
-}
 
-function renderRepo(s) {
-  if (!s.repo_url) return '<div class="empty">Not pushed yet.</div>';
-  return `<p>🚀 Pushed to: <a href="${esc(s.repo_url)}" target="_blank">${esc(s.repo_url)}</a></p>`;
-}
+      return withGroupLayout(
+        s,
+        st => codeHtml(st.code_files, 'main') + (st.validation ? `<p style="margin-top:10px">Validation: ${st.validation.passed ? '✅ passed' : '❌ failed: ' + (st.validation.errors || []).join(', ')}</p>` : ''),
+        g => codeHtml(g.output?.code_files, g.id) + (g.output?.validation ? `<p style="margin-top:10px">Validation: ${g.output.validation.passed ? '✅ passed' : '❌ failed: ' + (g.output.validation.errors || []).join(', ')}</p>` : '')
+      );
+    }
 
-// --------- Diagram fullscreen / download helpers ---------
+    function renderRepo(s) {
+      const repoHtml = (url) => {
+        if (!url) return '<div class="empty">Not pushed yet.</div>';
+        return `<p>🚀 Pushed to: <a href="${esc(url)}" target="_blank">${esc(url)}</a></p>`;
+      };
+      return withGroupLayout(
+        s,
+        st => repoHtml(st.repo_url),
+        g => repoHtml(g.output?.repo_url)
+      );
+    }
 
-/** Get the rendered SVG element from a .mermaid-wrap, or null if not yet rendered. */
-function getDiagramSvg(wrap) {
-  return wrap.querySelector('.mermaid svg');
-}
+    // --------- Diagram fullscreen / download helpers ---------
 
-/** Serialize an SVG element to a self-contained string (with width/height attributes). */
-function serializeSvg(svgEl) {
-  const clone = svgEl.cloneNode(true);
-  // Ensure width/height are set so downstream tools (PDF, image viewers) size correctly.
-  if (!clone.getAttribute('width') || !clone.getAttribute('height')) {
-    const vb = clone.getAttribute('viewBox');
-    if (vb) {
-      const parts = vb.split(/\s+/).map(Number);
-      if (parts.length === 4) {
-        clone.setAttribute('width', String(parts[2]));
-        clone.setAttribute('height', String(parts[3]));
+    /** Get the rendered SVG element from a .mermaid-wrap, or null if not yet rendered. */
+    function getDiagramSvg(wrap) {
+      return wrap.querySelector('.mermaid svg');
+    }
+
+    /** Serialize an SVG element to a self-contained string (with width/height attributes). */
+    function serializeSvg(svgEl) {
+      const clone = svgEl.cloneNode(true);
+      // Ensure width/height are set so downstream tools (PDF, image viewers) size correctly.
+      if (!clone.getAttribute('width') || !clone.getAttribute('height')) {
+        const vb = clone.getAttribute('viewBox');
+        if (vb) {
+          const parts = vb.split(/\s+/).map(Number);
+          if (parts.length === 4) {
+            clone.setAttribute('width', String(parts[2]));
+            clone.setAttribute('height', String(parts[3]));
+          }
+        }
+      }
+      if (!clone.getAttribute('xmlns')) {
+        clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      }
+      return new XMLSerializer().serializeToString(clone);
+    }
+
+    function downloadBlob(blob, filename) {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+
+    function downloadSvg(wrap, filename) {
+      const svgEl = getDiagramSvg(wrap);
+      if (!svgEl) return toast('Diagram not rendered yet', true);
+      const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializeSvg(svgEl);
+      downloadBlob(new Blob([xml], { type: 'image/svg+xml' }), `${filename}.svg`);
+    }
+
+    async function downloadPdf(wrap, filename) {
+      const svgEl = getDiagramSvg(wrap);
+      if (!svgEl) return toast('Diagram not rendered yet', true);
+
+      // Lazy / fallback loader — if the <script> tags failed (network, CSP,
+      // etc.) we try once more here from the same CDN before giving up.
+      await ensurePdfLibsLoaded();
+
+      const jsPDFCtor = window.jspdf?.jsPDF || window.jsPDF;
+      const svg2pdfFn =
+        (typeof window.svg2pdf === 'function' && window.svg2pdf) ||
+        (typeof window.svg2pdf?.svg2pdf === 'function' && window.svg2pdf.svg2pdf) ||
+        null;
+      if (!jsPDFCtor) return toast('jsPDF library not loaded', true);
+      try {
+        // Mermaid emits SVGs with style="max-width:NNNpx" and width="100%", so the
+        // attribute width/height are unreliable — the true content size lives in
+        // the viewBox. Prefer viewBox; fall back to BBox / attributes only if missing.
+        let width = 0;
+        let height = 0;
+        const vb = svgEl.getAttribute('viewBox');
+        if (vb) {
+          const parts = vb.split(/\s+|,/).map(Number);
+          if (parts.length === 4 && isFinite(parts[2]) && isFinite(parts[3])) {
+            width = parts[2];
+            height = parts[3];
+          }
+        }
+        if (!width || !height) {
+          const bbox = (() => {
+            try { return svgEl.getBBox(); } catch { return null; }
+          })();
+          if (bbox && bbox.width && bbox.height) {
+            width = bbox.width;
+            height = bbox.height;
+          }
+        }
+        if (!width || !height) {
+          const rect = svgEl.getBoundingClientRect();
+          width = rect.width || parseFloat(svgEl.getAttribute('width')) || 800;
+          height = rect.height || parseFloat(svgEl.getAttribute('height')) || 600;
+        }
+
+        // Make sure the SVG passed to svg2pdf has explicit width/height matching the
+        // viewBox; svg2pdf uses these to compute its internal scale, and a "100%"
+        // width yields the tiny-diagram-on-huge-page result.
+        const renderSvg = svgEl.cloneNode(true);
+        renderSvg.setAttribute('width', String(width));
+        renderSvg.setAttribute('height', String(height));
+        renderSvg.style.removeProperty('max-width');
+        renderSvg.style.removeProperty('width');
+        renderSvg.style.removeProperty('height');
+
+        const margin = 20;
+        const orientation = width >= height ? 'landscape' : 'portrait';
+        const pdf = new jsPDFCtor({
+          orientation,
+          unit: 'pt',
+          format: [width + margin * 2, height + margin * 2],
+        });
+
+        if (typeof pdf.svg === 'function') {
+          await pdf.svg(renderSvg, { x: margin, y: margin, width, height });
+        } else if (svg2pdfFn) {
+          await svg2pdfFn(renderSvg, pdf, { x: margin, y: margin, width, height });
+        } else {
+          return toast('svg2pdf library not loaded — try refreshing', true);
+        }
+        pdf.save(`${filename}.pdf`);
+      } catch (e) {
+        toast('PDF export failed: ' + (e?.message || e), true);
       }
     }
-  }
-  if (!clone.getAttribute('xmlns')) {
-    clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-  }
-  return new XMLSerializer().serializeToString(clone);
-}
 
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-function downloadSvg(wrap, filename) {
-  const svgEl = getDiagramSvg(wrap);
-  if (!svgEl) return toast('Diagram not rendered yet', true);
-  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializeSvg(svgEl);
-  downloadBlob(new Blob([xml], { type: 'image/svg+xml' }), `${filename}.svg`);
-}
-
-async function downloadPdf(wrap, filename) {
-  const svgEl = getDiagramSvg(wrap);
-  if (!svgEl) return toast('Diagram not rendered yet', true);
-
-  // Lazy / fallback loader — if the <script> tags failed (network, CSP,
-  // etc.) we try once more here from the same CDN before giving up.
-  await ensurePdfLibsLoaded();
-
-  const jsPDFCtor = window.jspdf?.jsPDF || window.jsPDF;
-  const svg2pdfFn =
-    (typeof window.svg2pdf === 'function' && window.svg2pdf) ||
-    (typeof window.svg2pdf?.svg2pdf === 'function' && window.svg2pdf.svg2pdf) ||
-    null;
-  if (!jsPDFCtor) return toast('jsPDF library not loaded', true);
-  try {
-    // Mermaid emits SVGs with style="max-width:NNNpx" and width="100%", so the
-    // attribute width/height are unreliable — the true content size lives in
-    // the viewBox. Prefer viewBox; fall back to BBox / attributes only if missing.
-    let width  = 0;
-    let height = 0;
-    const vb = svgEl.getAttribute('viewBox');
-    if (vb) {
-      const parts = vb.split(/\s+|,/).map(Number);
-      if (parts.length === 4 && isFinite(parts[2]) && isFinite(parts[3])) {
-        width  = parts[2];
-        height = parts[3];
+    /**
+     * Ensure jsPDF + svg2pdf.js are present. The <script> tags in <head> are the
+     * primary path; this is a one-time fallback that injects them at runtime if
+     * the initial load was blocked or cached as a 4xx.
+     */
+    let _pdfLibsPromise = null;
+    function ensurePdfLibsLoaded() {
+      if (_pdfLibsPromise) return _pdfLibsPromise;
+      const haveJsPdf = !!(window.jspdf?.jsPDF || window.jsPDF);
+      const haveSvg2Pdf =
+        typeof window.svg2pdf === 'function' ||
+        typeof window.svg2pdf?.svg2pdf === 'function';
+      if (haveJsPdf && haveSvg2Pdf) {
+        _pdfLibsPromise = Promise.resolve();
+        return _pdfLibsPromise;
       }
-    }
-    if (!width || !height) {
-      const bbox = (() => {
-        try { return svgEl.getBBox(); } catch { return null; }
-      })();
-      if (bbox && bbox.width && bbox.height) {
-        width  = bbox.width;
-        height = bbox.height;
-      }
-    }
-    if (!width || !height) {
-      const rect = svgEl.getBoundingClientRect();
-      width  = rect.width  || parseFloat(svgEl.getAttribute('width'))  || 800;
-      height = rect.height || parseFloat(svgEl.getAttribute('height')) || 600;
+      const loadScript = (src) => new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src = src;
+        s.onload = () => resolve();
+        s.onerror = () => reject(new Error('Failed to load ' + src));
+        document.head.appendChild(s);
+      });
+      _pdfLibsPromise = (async () => {
+        if (!haveJsPdf) await loadScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
+        if (!haveSvg2Pdf) await loadScript('https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.3/dist/svg2pdf.umd.min.js');
+      })().catch(e => { _pdfLibsPromise = null; throw e; });
+      return _pdfLibsPromise;
     }
 
-    // Make sure the SVG passed to svg2pdf has explicit width/height matching the
-    // viewBox; svg2pdf uses these to compute its internal scale, and a "100%"
-    // width yields the tiny-diagram-on-huge-page result.
-    const renderSvg = svgEl.cloneNode(true);
-    renderSvg.setAttribute('width',  String(width));
-    renderSvg.setAttribute('height', String(height));
-    renderSvg.style.removeProperty('max-width');
-    renderSvg.style.removeProperty('width');
-    renderSvg.style.removeProperty('height');
+    /** Show a fullscreen overlay containing a fresh render of the diagram + its toolbar. */
+    function openFullscreen(wrap, title, filename) {
+      const svgEl = getDiagramSvg(wrap);
+      if (!svgEl) return toast('Diagram not rendered yet', true);
 
-    const margin = 20;
-    const orientation = width >= height ? 'landscape' : 'portrait';
-    const pdf = new jsPDFCtor({
-      orientation,
-      unit: 'pt',
-      format: [width + margin * 2, height + margin * 2],
-    });
-
-    if (typeof pdf.svg === 'function') {
-      await pdf.svg(renderSvg, { x: margin, y: margin, width, height });
-    } else if (svg2pdfFn) {
-      await svg2pdfFn(renderSvg, pdf, { x: margin, y: margin, width, height });
-    } else {
-      return toast('svg2pdf library not loaded — try refreshing', true);
-    }
-    pdf.save(`${filename}.pdf`);
-  } catch (e) {
-    toast('PDF export failed: ' + (e?.message || e), true);
-  }
-}
-
-/**
- * Ensure jsPDF + svg2pdf.js are present. The <script> tags in <head> are the
- * primary path; this is a one-time fallback that injects them at runtime if
- * the initial load was blocked or cached as a 4xx.
- */
-let _pdfLibsPromise = null;
-function ensurePdfLibsLoaded() {
-  if (_pdfLibsPromise) return _pdfLibsPromise;
-  const haveJsPdf  = !!(window.jspdf?.jsPDF || window.jsPDF);
-  const haveSvg2Pdf =
-    typeof window.svg2pdf === 'function' ||
-    typeof window.svg2pdf?.svg2pdf === 'function';
-  if (haveJsPdf && haveSvg2Pdf) {
-    _pdfLibsPromise = Promise.resolve();
-    return _pdfLibsPromise;
-  }
-  const loadScript = (src) => new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = src;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error('Failed to load ' + src));
-    document.head.appendChild(s);
-  });
-  _pdfLibsPromise = (async () => {
-    if (!haveJsPdf)  await loadScript('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js');
-    if (!haveSvg2Pdf) await loadScript('https://cdn.jsdelivr.net/npm/svg2pdf.js@2.2.3/dist/svg2pdf.umd.min.js');
-  })().catch(e => { _pdfLibsPromise = null; throw e; });
-  return _pdfLibsPromise;
-}
-
-/** Show a fullscreen overlay containing a fresh render of the diagram + its toolbar. */
-function openFullscreen(wrap, title, filename) {
-  const svgEl = getDiagramSvg(wrap);
-  if (!svgEl) return toast('Diagram not rendered yet', true);
-
-  const overlay = document.createElement('div');
-  overlay.className = 'mmd-fs-overlay';
-  overlay.innerHTML = `
+      const overlay = document.createElement('div');
+      overlay.className = 'mmd-fs-overlay';
+      overlay.innerHTML = `
     <div class="mmd-fs-bar">
       <h3>${esc(title)}</h3>
       <button class="secondary" data-act="svg">⤓ SVG</button>
@@ -877,149 +1830,240 @@ function openFullscreen(wrap, title, filename) {
     </div>
     <div class="mmd-fs-stage"></div>
   `;
-  const stage = overlay.querySelector('.mmd-fs-stage');
-  stage.appendChild(svgEl.cloneNode(true));
-  document.body.appendChild(overlay);
+      const stage = overlay.querySelector('.mmd-fs-stage');
+      stage.appendChild(svgEl.cloneNode(true));
+      document.body.appendChild(overlay);
 
-  const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
-  document.addEventListener('keydown', onKey);
+      const close = () => { overlay.remove(); document.removeEventListener('keydown', onKey); };
+      const onKey = (e) => { if (e.key === 'Escape') close(); };
+      document.addEventListener('keydown', onKey);
 
-  overlay.querySelector('[data-act="close"]').onclick = close;
-  overlay.querySelector('[data-act="svg"]').onclick = () => {
-    // Use the stage's clone so what-you-see-is-what-you-get
-    const tmp = document.createElement('div');
-    tmp.appendChild(stage.querySelector('svg').cloneNode(true));
-    const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializeSvg(tmp.firstChild);
-    downloadBlob(new Blob([xml], { type: 'image/svg+xml' }), `${filename}.svg`);
-  };
-  overlay.querySelector('[data-act="pdf"]').onclick = () => downloadPdf(wrap, filename);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-}
+      overlay.querySelector('[data-act="close"]').onclick = close;
+      overlay.querySelector('[data-act="svg"]').onclick = () => {
+        // Use the stage's clone so what-you-see-is-what-you-get
+        const tmp = document.createElement('div');
+        tmp.appendChild(stage.querySelector('svg').cloneNode(true));
+        const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' + serializeSvg(tmp.firstChild);
+        downloadBlob(new Blob([xml], { type: 'image/svg+xml' }), `${filename}.svg`);
+      };
+      overlay.querySelector('[data-act="pdf"]').onclick = () => downloadPdf(wrap, filename);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    }
 
-// --------- Actions ---------
-async function start(payloadOverride) {
-  let projectName, features;
-  if (payloadOverride) {
-    ({ projectName, features } = payloadOverride);
-  } else {
-    projectName = document.getElementById('projectName').value.trim();
-    features = readFeatures();
-  }
-  if (!projectName) return toast('Project name required', true);
-  if (!features.length) return toast('At least one feature required', true);
-  setBusy(true);
-  runningStage = 'functions';
-  if (session.state) updateTimeline(session.state);
-  else {
-    // Provide a transient state so the timeline shows immediately
-    updateTimeline({ stage:'functions', stage_timings:{} });
-  }
-  try {
-    const res = await api('/scaffold/start', 'POST', { projectName, features });
-    session.id = res.sessionId;
-    session.state = res;
-    document.getElementById('sessionLabel').textContent = 'session: ' + res.sessionId;
-    runningStage = null;
-    refreshUI();
-    toast('Started — review stage: ' + res.stage);
-  } catch (e) { runningStage = null; toast(e.message, true); refreshUI(); }
-  setBusy(false);
-}
+    // --------- Actions ---------
+    async function start(payloadOverride) {
+      let projectName, template_groups;
+      if (payloadOverride) {
+        ({ projectName, template_groups } = payloadOverride);
+      } else {
+        projectName = document.getElementById('projectName').value.trim();
+        template_groups = readTemplateGroups();
+      }
+      if (!projectName) return toast('Project name required', true);
+      if (!template_groups || !template_groups.length) return toast('Please select at least one template (Enrollment or Transaction) and choose its type', true);
+      // Validate: warn if any enabled group is missing a type selection
+      for (const g of template_groups) {
+        if (!g.features || !g.features[0]?.type) {
+          return toast(`Please select a type (API or File Upload) for the ${g.id} template`, true);
+        }
+      }
+      setBusy(true);
+      runningStage = 'functions';
+      if (session.state) updateTimeline(session.state);
+      else {
+        updateTimeline({ stage: 'functions', stage_timings: {} });
+      }
+      try {
+        const res = await api('/scaffold/start', 'POST', { projectName, template_groups });
+        session.id = res.sessionId;
+        session.state = res;
+        document.getElementById('sessionLabel').textContent = 'session: ' + res.sessionId;
+        runningStage = null;
+        lastJumpedStage = null;
+        refreshUI();
+        loadPastSessions();
+        toast('Started — review stage: ' + res.stage);
+      } catch (e) { runningStage = null; toast(e.message, true); refreshUI(); }
+      setBusy(false);
+    }
 
-async function approve(approved) {
-  if (!session.id) return;
-  const feedback = document.getElementById('feedback').value.trim();
-  if (!approved && !feedback) return toast('Feedback required to regenerate', true);
-  setBusy(true);
-  // When approving, server moves to NEXT stage; when rejecting, server reruns CURRENT
-  const idx = STAGES.indexOf(session.state.stage);
-  runningStage = approved ? STAGES[idx + 1] : session.state.stage;
-  if (runningStage === 'done') runningStage = null;
-  updateTimeline(session.state);
-  try {
-    const res = await api(`/scaffold/${session.id}/approve`, 'POST', { approved, feedback: feedback || undefined });
-    session.state = res;
-    document.getElementById('feedback').value = '';
-    runningStage = null;
-    refreshUI();
-    toast(approved ? `Advanced to: ${res.stage}` : 'Regenerated current stage');
-  } catch (e) { runningStage = null; toast(e.message, true); refreshUI(); }
-  setBusy(false);
-}
+    async function approve(approved) {
+      if (!session.id) return;
+      const feedback = document.getElementById('feedback').value.trim();
+      if (!approved && !feedback) return toast('Feedback required to regenerate', true);
+      setBusy(true);
+      // When approving, server moves to NEXT stage; when rejecting, server reruns CURRENT
+      const idx = STAGES.indexOf(session.state.stage);
+      runningStage = approved ? STAGES[idx + 1] : session.state.stage;
+      if (runningStage === 'done') runningStage = null;
+      updateTimeline(session.state);
+      try {
+        const res = await api(`/scaffold/${session.id}/approve`, 'POST', { approved, feedback: feedback || undefined });
+        session.state = res;
+        document.getElementById('feedback').value = '';
+        runningStage = null;
+        refreshUI();
+        loadPastSessions();
+        toast(approved ? `Advanced to: ${res.stage}` : 'Regenerated current stage');
+      } catch (e) { runningStage = null; toast(e.message, true); refreshUI(); }
+      setBusy(false);
+    }
 
-async function restartFrom(stage) {
-  if (!session.id) return;
-  const label = STAGE_LABELS[stage] || stage;
-  const feedback = prompt(
-    `Restart from "${label}"?\n\n` +
-    `This will re-run the "${stage}" stage and DISCARD all downstream outputs ` +
-    `(they will be regenerated when you approve forward again).\n\n` +
-    `Optional feedback to apply (also propagated to later stages as a refinement):`,
-    '',
-  );
-  // prompt returns null on Cancel, '' on empty OK — both are fine; null means abort
-  if (feedback === null) return;
-  setBusy(true);
-  runningStage = stage;
-  updateTimeline(session.state);
-  try {
-    const res = await api(`/scaffold/${session.id}/restart`, 'POST', {
-      stage,
-      feedback: feedback.trim() || undefined,
-    });
-    session.state = res;
-    runningStage = null;
-    refreshUI();
-    toast(`Restarted from: ${stage}`);
-  } catch (e) { runningStage = null; toast(e.message, true); refreshUI(); }
-  setBusy(false);
-}
+    async function restartFrom(stage) {
+      if (!session.id) return;
+      const label = STAGE_LABELS[stage] || stage;
+      const feedback = prompt(
+        `Restart from "${label}"?\n\n` +
+        `This will re-run the "${stage}" stage and DISCARD all downstream outputs ` +
+        `(they will be regenerated when you approve forward again).\n\n` +
+        `Optional feedback to apply (also propagated to later stages as a refinement):`,
+        '',
+      );
+      // prompt returns null on Cancel, '' on empty OK — both are fine; null means abort
+      if (feedback === null) return;
+      setBusy(true);
+      runningStage = stage;
+      updateTimeline(session.state);
+      try {
+        const res = await api(`/scaffold/${session.id}/restart`, 'POST', {
+          stage,
+          feedback: feedback.trim() || undefined,
+        });
+        session.state = res;
+        runningStage = null;
+        refreshUI();
+        loadPastSessions();
+        toast(`Restarted from: ${stage}`);
+      } catch (e) { runningStage = null; toast(e.message, true); refreshUI(); }
+      setBusy(false);
+    }
 
-function refreshUI() {
-  const s = session.state;
-  if (!s) return;
-  updateTimeline(s);
-  updateHistory(s.history);
-  // Auto-jump active tab to the most recently produced output
-  const order = ['functions','diagrams','api_docs','db_schema','code_files','repo_url'];
-  const lastFilled = order.filter(k =>
-    k === 'functions' ? s.functions_list :
-    k === 'code_files' ? s.code_files :
-    s[k]
-  ).pop();
-  if (lastFilled) activeTab = lastFilled === 'functions' ? 'functions' : lastFilled;
-  renderActiveTab();
-  document.getElementById('approveBtn').disabled = s.stage === 'done';
-  document.getElementById('rejectBtn').disabled = s.stage === 'done' || s.stage === 'github';
-  // Keep the past-sessions sidebar in sync (stage / updatedAt may have changed)
-  if (typeof loadPastSessions === 'function') loadPastSessions();
-}
+    function refreshUI() {
+      const s = session.state;
+      if (!s) return;
 
-function setBusy(busy) {
-  ['startBtn','approveBtn','rejectBtn'].forEach(id =>
-    document.getElementById(id).disabled = busy);
-}
+      if (s.status === 'running') {
+        runningStage = s.stage;
+        schedulePoll();
+      } else {
+        runningStage = null;
+        clearPoll();
+      }
 
-function toast(msg, err=false) {
-  const box = document.getElementById('toastBox');
-  const el = document.createElement('div');
-  el.className = 'toast' + (err ? ' err' : '');
-  el.textContent = msg;
-  box.appendChild(el);
-  setTimeout(() => el.remove(), 4500);
-}
+      updateTimeline(s);
+      updateHistory(s.history);
+      // Auto-jump active tab only when the stage changes or session is first loaded
+      if (s.stage !== lastJumpedStage) {
+        const order = ['functions', 'diagrams', 'api_docs', 'db_schema', 'code_files', 'repo_url'];
+        const lastFilled = order.filter(k =>
+          k === 'functions' ? s.functions_list :
+            k === 'code_files' ? s.code_files :
+              s[k]
+        ).pop();
+        if (lastFilled) activeTab = lastFilled === 'functions' ? 'functions' : lastFilled;
+        lastJumpedStage = s.stage;
+      }
+      renderActiveTab();
+      // Keep the past-sessions sidebar in sync only when not actively running a stage in background
+      if (s.status !== 'running' && typeof loadPastSessions === 'function') {
+        loadPastSessions();
+      }
+    }
 
-// --------- Past sessions ---------
-async function loadPastSessions() {
-  const box = document.getElementById('pastSessions');
-  box.className = 'empty';
-  box.innerHTML = 'Loading…';
-  try {
-    const list = await api('/scaffold');
-    if (!list.length) { box.innerHTML = 'No past sessions yet.'; return; }
-    box.className = '';
-    box.innerHTML = list.map(r => `
+    function hasStageOutput(s) {
+      if (!s) return false;
+      const stage = s.stage;
+      const groups = s.template_groups || [];
+
+      const isGroupOutputPopulated = (g) => {
+        if (!g || !g.output) return false;
+        switch (stage) {
+          case 'functions':
+            return !!g.output.functions_list;
+          case 'diagrams':
+            return !!g.output.diagrams;
+          case 'docs':
+            return !!g.output.api_docs;
+          case 'db':
+            return !!g.output.db_schema;
+          case 'code':
+            if (!g.output.code_files) return false;
+            const planFiles = g.output.code_plan?.files || [];
+            const generatedCount = Object.keys(g.output.code_files).length;
+            return generatedCount > 0 && generatedCount >= planFiles.length;
+          case 'github':
+            return !!g.output.repo_url;
+          case 'done':
+            return true;
+          default:
+            return false;
+        }
+      };
+
+      if (groups.length > 0) {
+        return groups.every(isGroupOutputPopulated);
+      }
+
+      switch (stage) {
+        case 'functions':
+          return !!s.functions_list;
+        case 'diagrams':
+          return !!s.diagrams;
+        case 'docs':
+          return !!s.api_docs;
+        case 'db':
+          return !!s.db_schema;
+        case 'code':
+          if (!s.code_files) return false;
+          const planFiles = s.code_plan?.files || [];
+          const generatedCount = Object.keys(s.code_files).length;
+          return generatedCount > 0 && generatedCount >= planFiles.length;
+        case 'github':
+          return !!s.repo_url;
+        case 'done':
+          return true;
+        default:
+          return false;
+      }
+    }
+
+    function updateButtonStatus() {
+      const s = session.state;
+      if (!s) return;
+      const isReady = s.status !== 'running' && hasStageOutput(s);
+      document.getElementById('approveBtn').disabled = s.stage === 'done' || !isReady;
+      document.getElementById('rejectBtn').disabled = s.stage === 'done' || s.stage === 'github' || !isReady;
+    }
+
+    function setBusy(busy) {
+      document.getElementById('startBtn').disabled = busy;
+      if (busy) {
+        document.getElementById('approveBtn').disabled = true;
+        document.getElementById('rejectBtn').disabled = true;
+      } else {
+        updateButtonStatus();
+      }
+    }
+
+    function toast(msg, err = false) {
+      const box = document.getElementById('toastBox');
+      const el = document.createElement('div');
+      el.className = 'toast' + (err ? ' err' : '');
+      el.textContent = msg;
+      box.appendChild(el);
+      setTimeout(() => el.remove(), 4500);
+    }
+
+    // --------- Past sessions ---------
+    async function loadPastSessions() {
+      const box = document.getElementById('pastSessions');
+      box.className = 'empty';
+      box.innerHTML = 'Loading…';
+      try {
+        const list = await api('/scaffold');
+        if (!list.length) { box.innerHTML = 'No past sessions yet.'; return; }
+        box.className = '';
+        box.innerHTML = list.map(r => `
       <div class="session-row ${session.id === r.sessionId ? 'active' : ''}" data-id="${esc(r.sessionId)}">
         <div style="flex:1;min-width:0">
           <div class="name" title="${esc(r.projectName)} · ${esc(r.sessionId)}">${esc(r.projectName)}</div>
@@ -1028,111 +2072,170 @@ async function loadPastSessions() {
         <div class="stage">${esc(r.stage)}</div>
       </div>
     `).join('');
-    [...box.querySelectorAll('.session-row')].forEach(el => {
-      el.onclick = () => loadSession(el.dataset.id);
-    });
-  } catch (e) {
-    box.innerHTML = 'Failed to load: ' + esc(e.message || e);
-  }
-}
-
-/** One-click load: pull the full snapshot from the server and rehydrate the UI. */
-async function loadSession(sessionId) {
-  setBusy(true);
-  try {
-    const res = await api(`/scaffold/${sessionId}`);
-    session.id = sessionId;
-    session.state = res;
-    document.getElementById('sessionLabel').textContent = 'session: ' + sessionId;
-    runningStage = null;
-    refreshUI();
-    // Restore the project + features into the form so the user can see what was input
-    if (res.projectName) document.getElementById('projectName').value = res.projectName;
-    if (Array.isArray(res.features)) {
-      document.getElementById('featureList').innerHTML = '';
-      res.features.forEach(f => addFeatureRow(f.name || '', f.type || 'api'));
+        [...box.querySelectorAll('.session-row')].forEach(el => {
+          el.onclick = () => loadSession(el.dataset.id);
+        });
+      } catch (e) {
+        box.innerHTML = 'Failed to load: ' + esc(e.message || e);
+      }
     }
-    toast(`Loaded session — current stage: ${res.stage}`);
-    loadPastSessions(); // refresh the active highlight
-  } catch (e) { toast('Load failed: ' + (e.message || e), true); }
-  setBusy(false);
-}
 
-// --------- Bootstrap ---------
-addFeatureRow();
-document.getElementById('addFeature').onclick = () => addFeatureRow();
-document.getElementById('startBtn').onclick = () => start();
-document.getElementById('approveBtn').onclick = () => approve(true);
-document.getElementById('rejectBtn').onclick  = () => approve(false);
-document.getElementById('resetBtn').onclick = () => location.reload();
-document.getElementById('refreshSessionsBtn').onclick = () => loadPastSessions();
-loadPastSessions();
+    /** One-click load: pull the full snapshot from the server and rehydrate the UI. */
+    async function loadSession(sessionId) {
+      setBusy(true);
+      try {
+        const res = await api(`/scaffold/${sessionId}`);
+        session.id = sessionId;
+        session.state = res;
+        document.getElementById('sessionLabel').textContent = 'session: ' + sessionId;
+        runningStage = null;
+        lastJumpedStage = null;
+        refreshUI();
+        // Restore the project + features into the form so the user can see what was input
+        if (res.projectName) document.getElementById('projectName').value = res.projectName;
 
-// Collapsible side panels
-const mainEl = document.querySelector('main');
-function setPanel(side, collapsed) {
-  mainEl.classList.toggle(side + '-collapsed', collapsed);
-  const btn = document.getElementById(side === 'left' ? 'toggleLeft' : 'toggleRight');
-  if (side === 'left')  btn.textContent = collapsed ? '›' : '‹';
-  if (side === 'right') btn.textContent = collapsed ? '‹' : '›';
-  btn.title = (collapsed ? 'Expand' : 'Collapse') + ' ' + side + ' panel';
-  localStorage.setItem('panel.' + side + '.collapsed', collapsed ? '1' : '0');
-}
-document.getElementById('toggleLeft').onclick  = () => setPanel('left',  !mainEl.classList.contains('left-collapsed'));
-document.getElementById('toggleRight').onclick = () => setPanel('right', !mainEl.classList.contains('right-collapsed'));
-// Restore previous collapse state
-if (localStorage.getItem('panel.left.collapsed')  === '1') setPanel('left',  true);
-if (localStorage.getItem('panel.right.collapsed') === '1') setPanel('right', true);
+        // Restore cascading state from loaded session
+        if (Array.isArray(res.template_groups)) {
+          res.template_groups.forEach(g => {
+            const groupId = g.id; // 'enrollment' or 'transaction'
+            if (!cascadeState[groupId]) return;
+            const firstFeature = g.features?.[0];
+            if (!firstFeature) return;
 
-// Auto-resize the Swagger iframe based on content height messages
-window.addEventListener('message', (e) => {
-  if (e?.data?.type === 'swagger-resize') {
-    const f = document.getElementById('swaggerFrame');
-    if (f) f.style.height = Math.max(400, e.data.height + 20) + 'px';
-  }
-});
+            // Enable the row
+            cascadeState[groupId].enabled = true;
+            cascadeState[groupId].type = firstFeature.type || 'api';
 
-// JSON paste flow
-const pasteWrap = document.getElementById('jsonPasteWrap');
-document.getElementById('pasteJsonBtn').onclick = () => {
-  pasteWrap.style.display = pasteWrap.style.display === 'none' ? 'block' : 'none';
-};
-document.getElementById('loadJsonBtn').onclick = () => {
-  const payload = parseJsonPayload();
-  if (!payload) return;
-  applyPayloadToForm(payload);
-  toast('Loaded into form — review and click Start');
-};
-document.getElementById('startFromJsonBtn').onclick = () => {
-  const payload = parseJsonPayload();
-  if (!payload) return;
-  applyPayloadToForm(payload);
-  start(payload); // bypass form-read for accuracy
-};
+            const rowEl = document.getElementById('cascade' + groupId.charAt(0).toUpperCase() + groupId.slice(1));
+            if (rowEl) {
+              rowEl.classList.add('selected');
+              // Mark the type pill active
+              rowEl.querySelectorAll('.cascade-pill').forEach(p => {
+                if (p.dataset.type === firstFeature.type) p.classList.add('active');
+              });
+            }
 
-function parseJsonPayload() {
-  const raw = document.getElementById('jsonPaste').value.trim();
-  if (!raw) { toast('Paste JSON first', true); return null; }
-  let parsed;
-  try { parsed = JSON.parse(raw); }
-  catch (e) { toast('Invalid JSON: ' + e.message, true); return null; }
-  if (!parsed.projectName || !Array.isArray(parsed.features) || !parsed.features.length) {
-    toast('JSON must include projectName + non-empty features[]', true);
-    return null;
-  }
-  // Normalize: allow features as plain strings too
-  parsed.features = parsed.features.map(f =>
-    typeof f === 'string' ? { name: f, type: 'api' } : { name: f.name, type: f.type || 'api' }
-  );
-  return parsed;
-}
+            // If transaction API, restore scheme
+            if (groupId === 'transaction' && firstFeature.type === 'api') {
+              document.getElementById('schemeGroup').style.display = 'block';
+              if (firstFeature.scheme) {
+                cascadeState.transaction.scheme = firstFeature.scheme;
+                document.querySelectorAll('#schemePills .cascade-pill').forEach(p => {
+                  if (p.dataset.scheme === firstFeature.scheme) p.classList.add('active');
+                });
+              }
+            }
+          });
+        }
 
-function applyPayloadToForm(payload) {
-  document.getElementById('projectName').value = payload.projectName;
-  document.getElementById('featureList').innerHTML = '';
-  payload.features.forEach(f => addFeatureRow(f.name || '', f.type || 'api'));
-}
-renderTabs();
-</script>
+        toast(`Loaded session — current stage: ${res.stage}`);
+        loadPastSessions(); // refresh the active highlight
+      } catch (e) { toast('Load failed: ' + (e.message || e), true); }
+      setBusy(false);
+    }
+
+    // --------- Bootstrap ---------
+    document.getElementById('startBtn').onclick = () => start();
+    document.getElementById('approveBtn').onclick = () => approve(true);
+    document.getElementById('rejectBtn').onclick = () => approve(false);
+    document.getElementById('resetBtn').onclick = () => location.reload();
+    document.getElementById('refreshSessionsBtn').onclick = () => loadPastSessions();
+    loadPastSessions();
+
+    // Collapsible side panels
+    const mainEl = document.querySelector('main');
+    function setPanel(side, collapsed) {
+      mainEl.classList.toggle(side + '-collapsed', collapsed);
+      const btn = document.getElementById(side === 'left' ? 'toggleLeft' : 'toggleRight');
+      if (side === 'left') btn.textContent = collapsed ? '›' : '‹';
+      if (side === 'right') btn.textContent = collapsed ? '‹' : '›';
+      btn.title = (collapsed ? 'Expand' : 'Collapse') + ' ' + side + ' panel';
+      localStorage.setItem('panel.' + side + '.collapsed', collapsed ? '1' : '0');
+    }
+    document.getElementById('toggleLeft').onclick = () => setPanel('left', !mainEl.classList.contains('left-collapsed'));
+    document.getElementById('toggleRight').onclick = () => setPanel('right', !mainEl.classList.contains('right-collapsed'));
+    // Restore previous collapse state
+    if (localStorage.getItem('panel.left.collapsed') === '1') setPanel('left', true);
+    if (localStorage.getItem('panel.right.collapsed') === '1') setPanel('right', true);
+
+    // Auto-resize the Swagger iframe based on content height messages
+    window.addEventListener('message', (e) => {
+      if (e?.data?.type && e.data.type.startsWith('swagger-resize')) {
+        const suffix = e.data.type.replace('swagger-resize-', '');
+        const f = document.getElementById('swaggerFrame_' + suffix) || document.getElementById('swaggerFrame');
+        if (f) f.style.height = Math.max(400, e.data.height + 20) + 'px';
+      }
+    });
+
+    // JSON paste flow
+    const pasteWrap = document.getElementById('jsonPasteWrap');
+    document.getElementById('pasteJsonBtn').onclick = () => {
+      pasteWrap.style.display = pasteWrap.style.display === 'none' ? 'block' : 'none';
+    };
+    document.getElementById('loadJsonBtn').onclick = () => {
+      const payload = parseJsonPayload();
+      if (!payload) return;
+      applyPayloadToForm(payload);
+      toast('Loaded into form — review and click Start');
+    };
+    document.getElementById('startFromJsonBtn').onclick = () => {
+      const payload = parseJsonPayload();
+      if (!payload) return;
+      applyPayloadToForm(payload);
+      start(payload); // bypass form-read for accuracy
+    };
+
+    function parseJsonPayload() {
+      const raw = document.getElementById('jsonPaste').value.trim();
+      if (!raw) { toast('Paste JSON first', true); return null; }
+      let parsed;
+      try { parsed = JSON.parse(raw); }
+      catch (e) { toast('Invalid JSON: ' + e.message, true); return null; }
+      if (!parsed.projectName) {
+        toast('JSON must include projectName', true);
+        return null;
+      }
+      if (parsed.template_groups) {
+        parsed.template_groups = parsed.template_groups.map(g => ({
+          id: g.id,
+          features: g.features.map(f => typeof f === 'string' ? { name: f, type: 'api' } : { name: f.name, type: f.type || 'api' })
+        }));
+      } else if (Array.isArray(parsed.features) && parsed.features.length) {
+        parsed.features = parsed.features.map(f =>
+          typeof f === 'string' ? { name: f, type: 'api' } : { name: f.name, type: f.type || 'api' }
+        );
+        parsed.template_groups = [{ id: 'enrollment', features: parsed.features }];
+      } else {
+        toast('JSON must include template_groups or non-empty features[]', true);
+        return null;
+      }
+      return parsed;
+    }
+
+    function applyPayloadToForm(payload) {
+      document.getElementById('projectName').value = payload.projectName;
+      document.getElementById('templateBlocks').innerHTML = '';
+      if (Array.isArray(payload.template_groups)) {
+        payload.template_groups.forEach(g => {
+          addTemplateBlock(g.id);
+          const blockEl = document.querySelector(`.template-block[data-template-id="${g.id}"]`);
+          if (blockEl) {
+            blockEl.querySelector('.block-features').innerHTML = '';
+            g.features.forEach(f => addFeatureRowToBlock(blockEl, f.name, f.type));
+          }
+        });
+      } else if (Array.isArray(payload.features)) {
+        addTemplateBlock('enrollment');
+        const blockEl = document.querySelector(`.template-block[data-template-id="enrollment"]`);
+        if (blockEl) {
+          blockEl.querySelector('.block-features').innerHTML = '';
+          payload.features.forEach(f => addFeatureRowToBlock(blockEl, f.name, f.type));
+        }
+      }
+      syncAddBlockButton();
+    }
+    renderTabs();
+  </script>
 </body>
+
 </html>

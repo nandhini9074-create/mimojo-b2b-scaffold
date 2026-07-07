@@ -12,6 +12,25 @@ export class FeatureDto {
   @IsOptional()
   @IsEnum(['api', 'file'])
   type?: 'api' | 'file';
+
+  @ApiProperty({ example: 'VISA', enum: ['VISA', 'MC', 'MC and VISA'], required: false, description: 'Card scheme — only applicable for transaction API type features.' })
+  @IsOptional()
+  @IsString()
+  scheme?: 'VISA' | 'MC' | 'MC and VISA';
+}
+
+export class TemplateGroupDto {
+  @ApiProperty({ example: 'enrollment', enum: ['enrollment', 'transaction'] })
+  @IsNotEmpty()
+  @IsString()
+  id: 'enrollment' | 'transaction';
+
+  @ApiProperty({ type: [FeatureDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => FeatureDto)
+  features: FeatureDto[];
 }
 
 export class StartScaffoldDto {
@@ -22,17 +41,29 @@ export class StartScaffoldDto {
 
   @ApiProperty({
     type: [FeatureDto],
+    required: false,
     example: [
       { name: 'create order', type: 'api' },
       { name: 'file upload', type: 'file' },
     ],
     description: 'Feature list. Template references are auto-resolved from the server config based on feature type.',
   })
+  @IsOptional()
   @IsArray()
-  @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => FeatureDto)
-  features: FeatureDto[];
+  features?: FeatureDto[];
+
+  @ApiProperty({
+    type: [TemplateGroupDto],
+    required: false,
+    description: 'List of template blocks, each containing their own features.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => TemplateGroupDto)
+  template_groups?: TemplateGroupDto[];
 }
 
 export class ApproveStageDto {

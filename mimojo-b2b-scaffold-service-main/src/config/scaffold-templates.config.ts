@@ -29,82 +29,75 @@ export interface TemplateConfig {
     file: string[];
   };
 }
+export type TemplateName = 'enrollment' | 'transaction';
 
-export const scaffoldTemplatesConfig: TemplateConfig = {
-  repoUrl: 'https://github.com/mojosoln/mimojo-enrollment-template-service',
-  branch: 'main',
-  templates: {
-    // ── Shared across both variants ──────────────────────────────────
-    shared: [
-      // Bootstrapping & Core Setup
-      'src/main.ts',
-      'src/app.module.ts',
-      'src/tracer.ts',
-
-      // Configuration & Validation
-      'config/server.config.ts',
-      'env.validation.ts',
-
-      // Logging
-      'src/logger/logger.interceptor.ts',
-      'src/logger/custom-logger.service.ts',
-
-      // Security
-      'src/guards/auth.guard.ts',
-
-      // HTTP Client
-      'src/http/generic-http.service.ts',
-
-      // Kafka
-      'src/kafka/consumer/kafka-consumer-handler.service.ts',
-
-      // Database helper
-      'src/common/helpers/database.ts',
-
-      // Standardized outputs
-      'src/common/dtos/base-response.ts',
-      'src/common/errors/catch-all-errors.ts',
-      'src/common/helpers/base-response.helper.ts',
-
-      // Feature metadata
-      'src/enrollment/metadata/feature.yml',
-      'src/enrollment/config/variant.config.ts',
-    ],
-
-    // ── Variant 1: auto_api — API-Based Enrollment/Unenrollment ─────
-    api: [
-      // Controllers
-      'src/enrollment/controllers/enroll.controller.ts',
-      'src/enrollment/controllers/unenroll.controller.ts',
-
-      // Services
-      'src/enrollment/services/enroll.service.ts',
-      'src/enrollment/services/unenroll.service.ts',
-
-      // DTOs
-      'src/enrollment/dto/enrol-card.dto.ts',
-      'src/enrollment/dto/unenroll-card.dto.ts',
-
-      // Database Models
-      'src/enrollment/entities/customer.model.ts',
-      'src/enrollment/entities/user-card.model.ts',
-      'src/enrollment/entities/activityLog.model.ts',
-
-      // Enums
-      'src/enums/card-status.enum.ts',
-    ],
-
-    // ── Variant 2: auto_file — File-Based Batch Processing ──────────
-    file: [
-      // Controller
-      'src/enrollment/controllers/file-upload.controller.ts',
-
-      // Service
-      'src/enrollment/services/file-upload.service.ts',
-
-      // DTOs
-      'src/enrollment/dto/file.model.ts',
-      'src/enrollment/dto/file-status.dto.ts',
-    ],
+export const scaffoldTemplateRegistry: Record<TemplateName, TemplateConfig> = {
+  enrollment: {
+    repoUrl: `https://github.com/${process.env.GITHUB_OWNER_ENROLLMENT || 'mojosoln'}/mimojo-enrollment-template-service`,
+    branch: 'main',
+    templates: {
+      shared: [
+        'src/main.ts',
+        'src/app.module.ts',
+        'src/tracer.ts',
+        'config/server.config.ts',
+        'env.validation.ts',
+        'src/logger/logger.interceptor.ts',
+        'src/logger/custom-logger.service.ts',
+        'src/guards/auth.guard.ts',
+      ],
+      api: [
+        'src/enrollment/controllers/enroll.controller.ts',
+        'src/enrollment/controllers/unenroll.controller.ts',
+        'src/enrollment/services/enroll.service.ts',
+        'src/enrollment/services/unenroll.service.ts',
+        'src/enrollment/dto/enrol-card.dto.ts',
+        'src/enrollment/dto/unenroll-card.dto.ts',
+        'src/enrollment/entities/customer.model.ts',
+        'src/enrollment/entities/user-card.model.ts',
+        'src/enrollment/entities/activityLog.model.ts',
+        'src/enums/card-status.enum.ts',
+      ],
+      file: [
+        'src/enrollment/controllers/file-upload.controller.ts',
+        'src/enrollment/services/file-upload.service.ts',
+        'src/enrollment/dto/file.model.ts',
+        'src/enrollment/dto/file-status.dto.ts',
+      ],
+    },
+  },
+  transaction: {
+    repoUrl: `https://github.com/${process.env.GITHUB_OWNER_TRANSACTION || 'nandhini9074-create'}/mimojo-transaction-template-service`,
+    branch: 'main',
+    templates: {
+      shared: [
+        'src/main.ts',
+        'src/app.module.ts',
+        'src/tracer.ts',
+        'config/server.config.ts',
+        'env.validation.ts',
+        'src/logger/logger.interceptor.ts',
+        'src/logger/custom-logger.service.ts',
+        'src/guards/auth.guard.ts',
+      ],
+      api: [
+        'src/transaction/controllers/transaction.controller.ts',
+        'src/transaction/controllers/transaction-v2.controller.ts',
+        'src/transaction/services/payout-transaction.service.ts',
+        'src/transaction/dto/get-transaction.dto.ts',
+        'src/transaction/dto/get-payday-transaction.dto.ts',
+        'src/transaction/dto/transaction-details.dto.ts',
+        'src/transaction/entities/payout-transaction.model.ts',
+        'src/transaction/entities/consumer.model.ts',
+        'src/transaction/entities/payout-status.model.ts',
+        'src/transaction/enums/payout-status.enum.ts',
+        'src/transaction/enums/payout-transaction-status.enum.ts',
+      ],
+      file: [
+        'src/transaction/entities/payout-merchant-outlet.model.ts',
+      ],
+    },
   },
 };
+
+export const scaffoldTemplatesConfig = scaffoldTemplateRegistry.enrollment;

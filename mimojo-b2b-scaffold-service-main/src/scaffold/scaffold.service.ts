@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/sequelize';
 import { randomUUID } from 'crypto';
-import { FeatureInput, PipelineState, ScaffoldStage } from '../state';
+import { FeatureInput, PipelineState, ScaffoldStage, TemplateGroupState } from '../state';
 import { ScaffoldSession } from './entities/scaffold-session.model';
 
 import { extractFunctions } from '../nodes/extractFunctions';
@@ -25,29 +25,84 @@ const STAGE_ORDER: ScaffoldStage[] = [
   'done',
 ];
 
+export function groupFeatures(features: FeatureInput[]): TemplateGroupState[] {
+  const enrollmentFeatures: FeatureInput[] = [];
+  const transactionFeatures: FeatureInput[] = [];
+
+  for (const f of features) {
+    const nameLower = (f.name || '').toLowerCase();
+    if (
+      nameLower.includes('transaction') ||
+      nameLower.includes('payout') ||
+      nameLower.includes('merchant') ||
+      nameLower.includes('outlet') ||
+      nameLower.includes('payday')
+    ) {
+      transactionFeatures.push(f);
+    } else {
+      enrollmentFeatures.push(f);
+    }
+  }
+
+  const groups: TemplateGroupState[] = [];
+  if (enrollmentFeatures.length > 0) {
+    groups.push({ id: 'enrollment', features: enrollmentFeatures, output: {} });
+  }
+  if (transactionFeatures.length > 0) {
+    groups.push({ id: 'transaction', features: transactionFeatures, output: {} });
+  }
+
+  if (groups.length === 0) {
+    groups.push({ id: 'enrollment', features: [], output: {} });
+  }
+  return groups;
+}
+
 @Injectable()
 export class ScaffoldService {
+  private readonly logger = new Logger(ScaffoldService.name);
+
   /** In-memory session cache. The DB is the source of truth. */
   private readonly sessions = new Map<string, PipelineState>();
 
   constructor(
     @InjectModel(ScaffoldSession)
     private readonly sessionRepo: typeof ScaffoldSession,
-  ) {}
+  ) { }
 
   /** Step 1: kickoff. Runs `functions` stage (extract + github refs) and pauses for approval. */
-  async start(projectName: string, features: FeatureInput[]) {
+  async start(projectName: string, features?: FeatureInput[], template_groups?: any[]) {
     const sessionId = randomUUID();
+
+    let allFeatures: FeatureInput[] = [];
+    if (template_groups && template_groups.length > 0) {
+      for (const g of template_groups) {
+        if (g.features) {
+          allFeatures.push(...g.features);
+        }
+      }
+    } else if (features) {
+      allFeatures.push(...features);
+    }
+
+    const grouped = groupFeatures(allFeatures);
+
     const state: PipelineState = {
       projectName,
-      features,
+      features: allFeatures,
+      template_groups: grouped,
       stage: 'functions',
+      status: 'running',
       history: [],
       refinements: [],
     };
-    await this.runStage(state, 'functions');
     this.sessions.set(sessionId, state);
     await this.persist(sessionId, state);
+
+    this.runStage(sessionId, state, 'functions').catch(err => {
+      this.logger.error(`Error in background stage functions: ${err.message}`, err.stack);
+    });
+
     return { sessionId, ...this.snapshot(state) };
   }
 
@@ -75,8 +130,12 @@ export class ScaffoldService {
         feedback,
         at: new Date().toISOString(),
       });
-      await this.runStage(state, state.stage, feedback);
+      state.status = 'running';
       await this.persist(sessionId, state);
+      
+      this.runStage(sessionId, state, state.stage, feedback).catch(err => {
+        this.logger.error(`Error in background stage ${state.stage}: ${err.message}`, err.stack);
+      });
       return this.snapshot(state);
     }
 
@@ -85,14 +144,28 @@ export class ScaffoldService {
     const next = STAGE_ORDER[nextIdx];
     state.stage = next;
     if (next !== 'done') {
-      await this.runStage(state, next);
+      state.status = 'running';
+      await this.persist(sessionId, state);
+      this.runStage(sessionId, state, next).catch(err => {
+        this.logger.error(`Error in background stage ${next}: ${err.message}`, err.stack);
+      });
+    } else {
+      state.status = 'idle';
+      await this.persist(sessionId, state);
     }
-    await this.persist(sessionId, state);
     return this.snapshot(state);
   }
 
   async get(sessionId: string) {
     const state = await this.requireSession(sessionId);
+    if (state.stage !== 'done' && state.status !== 'running' && !this.hasStageOutput(state)) {
+      this.logger.log(`Session ${sessionId} is missing outputs for stage ${state.stage}. Auto-triggering generation in background...`);
+      state.status = 'running';
+      await this.persist(sessionId, state);
+      this.runStage(sessionId, state, state.stage).catch(err => {
+        this.logger.error(`Error in background auto-triggered stage ${state.stage}: ${err.message}`, err.stack);
+      });
+    }
     return this.snapshot(state);
   }
 
@@ -171,8 +244,12 @@ export class ScaffoldService {
     this.clearStageOutputsFrom(state, targetIdx);
 
     state.stage = target;
-    await this.runStage(state, target, feedback);
+    state.status = 'running';
     await this.persist(sessionId, state);
+
+    this.runStage(sessionId, state, target, feedback).catch(err => {
+      this.logger.error(`Error in background stage ${target}: ${err.message}`, err.stack);
+    });
     return this.snapshot(state);
   }
 
@@ -207,6 +284,36 @@ export class ScaffoldService {
           state.repo_url = undefined;
           break;
       }
+      if (state.template_groups) {
+        for (const group of state.template_groups) {
+          group.output = group.output ?? {};
+          switch (s) {
+            case 'functions':
+              group.output.functions_list = undefined;
+              group.output.github_refs = undefined;
+              group.output.repo_tree = undefined;
+              break;
+            case 'diagrams':
+              group.output.diagrams = undefined;
+              break;
+            case 'docs':
+              group.output.api_docs = undefined;
+              group.output.project_docs = undefined;
+              break;
+            case 'db':
+              group.output.db_schema = undefined;
+              break;
+            case 'code':
+              group.output.code_plan = undefined;
+              group.output.code_files = undefined;
+              group.output.validation = undefined;
+              break;
+            case 'github':
+              group.output.repo_url = undefined;
+              break;
+          }
+        }
+      }
     }
   }
 
@@ -215,7 +322,12 @@ export class ScaffoldService {
   /** Look up a session in the in-memory cache; if missing, hydrate from DB. */
   private async requireSession(sessionId: string): Promise<PipelineState> {
     const cached = this.sessions.get(sessionId);
-    if (cached) return cached;
+    if (cached) {
+      if (!cached.template_groups && cached.features) {
+        cached.template_groups = groupFeatures(cached.features);
+      }
+      return cached;
+    }
     const row = await this.sessionRepo.findByPk(sessionId);
     if (!row) throw new NotFoundException(`Session ${sessionId} not found`);
     const state = row.state as unknown as PipelineState;
@@ -223,6 +335,9 @@ export class ScaffoldService {
     state.history = state.history ?? [];
     state.refinements = state.refinements ?? [];
     state.stage_timings = state.stage_timings ?? {};
+    if (!state.template_groups && state.features) {
+      state.template_groups = groupFeatures(state.features);
+    }
     this.sessions.set(sessionId, state);
     return state;
   }
@@ -242,8 +357,10 @@ export class ScaffoldService {
   private snapshot(state: PipelineState) {
     return {
       stage: state.stage,
+      status: state.status,
       projectName: state.projectName,
       features: state.features,
+      template_groups: state.template_groups,
       functions_list: state.functions_list,
       github_refs: state.github_refs,
       repo_tree: state.repo_tree,
@@ -262,17 +379,30 @@ export class ScaffoldService {
   }
 
   /** Wraps the actual stage runner to record per-stage execution time. */
-  private async runStage(state: PipelineState, stage: ScaffoldStage, feedback?: string) {
+  private async runStage(sessionId: string, state: PipelineState, stage: ScaffoldStage, feedback?: string) {
+    this.logger.log(`Starting stage "${stage}"...`);
     const started = Date.now();
-    await this.runStageInner(state, stage, feedback);
+    
+    state.status = 'running';
+    try {
+      await this.runStageInner(sessionId, state, stage, feedback);
+    } catch (err) {
+      state.status = 'idle';
+      await this.persist(sessionId, state);
+      throw err;
+    }
+    
     const elapsed = Date.now() - started;
     state.stage_timings = state.stage_timings ?? {};
     // Keep the LATEST run’s duration (regenerations overwrite the prior one)
     state.stage_timings[stage] = elapsed;
+    state.status = 'idle';
+    await this.persist(sessionId, state);
+    this.logger.log(`Stage "${stage}" completed in ${elapsed}ms`);
   }
 
   /** Runs (or re-runs with feedback) a single stage. */
-  private async runStageInner(state: PipelineState, stage: ScaffoldStage, feedback?: string) {
+  private async runStageInner(sessionId: string, state: PipelineState, stage: ScaffoldStage, feedback?: string) {
     switch (stage) {
       case 'functions': {
         state.github_refs = await searchGithubRefs(state);
@@ -284,11 +414,7 @@ export class ScaffoldService {
         break;
       }
       case 'docs': {
-        const md = await generateDocs(state, feedback);
-        // Split the two ## sections returned by the LLM
-        const [api, readme] = md.split(/^##\s+Project README/m);
-        state.api_docs = api?.trim();
-        state.project_docs = readme ? `## Project README${readme}`.trim() : undefined;
+        await generateDocs(state, feedback);
         break;
       }
       case 'db': {
@@ -297,13 +423,16 @@ export class ScaffoldService {
       }
       case 'code': {
         state.code_plan = await generateCodePlan(state);
-        state.code_files = await generateModuleCode(state, feedback);
+        state.code_files = await generateModuleCode(state, feedback, async () => {
+          await this.persist(sessionId, state);
+        });
         // validate + auto-fix loop (max 2 attempts)
         for (let attempt = 0; attempt < 2; attempt++) {
           const v = await validate(state);
-          state.validation = v.validation;
-          if (v.validation.passed) break;
+          state.validation = v;
+          if (v?.passed) break;
           state.code_files = await fix(state).then((r) => r.code_files);
+          await this.persist(sessionId, state);
         }
         break;
       }
@@ -318,5 +447,62 @@ export class ScaffoldService {
         return;
     }
     state.stage = stage;
+  }
+
+  private hasStageOutput(state: PipelineState): boolean {
+    if (!state) return false;
+    const stage = state.stage;
+    const groups = state.template_groups || [];
+
+    const isGroupOutputPopulated = (g) => {
+      if (!g || !g.output) return false;
+      switch (stage) {
+        case 'functions':
+          return !!g.output.functions_list;
+        case 'diagrams':
+          return !!g.output.diagrams;
+        case 'docs':
+          return !!g.output.api_docs;
+        case 'db':
+          return !!g.output.db_schema;
+        case 'code':
+          if (!g.output.code_files) return false;
+          const planFiles = g.output.code_plan?.files || [];
+          const generatedCount = Object.keys(g.output.code_files).length;
+          return generatedCount > 0 && generatedCount >= planFiles.length;
+        case 'github':
+          return !!g.output.repo_url;
+        case 'done':
+          return true;
+        default:
+          return false;
+      }
+    };
+
+    if (groups.length > 0) {
+      return groups.every(isGroupOutputPopulated);
+    }
+
+    switch (stage) {
+      case 'functions':
+        return !!state.functions_list;
+      case 'diagrams':
+        return !!state.diagrams;
+      case 'docs':
+        return !!state.api_docs;
+      case 'db':
+        return !!state.db_schema;
+      case 'code':
+        if (!state.code_files) return false;
+        const planFiles = state.code_plan?.files || [];
+        const generatedCount = Object.keys(state.code_files).length;
+        return generatedCount > 0 && generatedCount >= planFiles.length;
+      case 'github':
+        return !!state.repo_url;
+      case 'done':
+        return true;
+      default:
+        return false;
+    }
   }
 }

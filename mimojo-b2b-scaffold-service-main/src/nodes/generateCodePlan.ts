@@ -2,8 +2,39 @@ import { gpt41 } from "../llm";
 import { safeJsonParse } from "../common/utils/json";
 import { PipelineState } from "../state";
 import { renderRefinements } from "./refinements";
+import { Logger } from "@nestjs/common";
+
+const logger = new Logger('generateCodePlan');
 
 export async function generateCodePlan(state: PipelineState): Promise<{ files: string[] }> {
+  const totalStarted = Date.now();
+  if (!state.template_groups || state.template_groups.length === 0) {
+    state.template_groups = [{ id: 'enrollment', features: state.features || [], output: {} }];
+  }
+
+  for (const group of state.template_groups) {
+    logger.log(`Generating code plan for group "${group.id}"...`);
+    const groupStarted = Date.now();
+    const groupState = {
+      ...state,
+      github_refs: group.output.github_refs,
+      features: group.features,
+      functions_list: group.output.functions_list,
+      repo_tree: group.output.repo_tree,
+    };
+    group.output.code_plan = await runCodePlanForGroup(groupState);
+    logger.log(`Code plan for group "${group.id}" generated with ${group.output.code_plan?.files?.length || 0} files in ${Date.now() - groupStarted}ms`);
+  }
+
+  state.code_plan = state.template_groups[0]?.output.code_plan;
+  
+  const elapsed = Date.now() - totalStarted;
+  logger.log(`generateCodePlan completed in ${elapsed}ms`);
+
+  return state.code_plan || { files: [] };
+}
+
+async function runCodePlanForGroup(state: PipelineState): Promise<{ files: string[] }> {
   const hasTree = !!state.repo_tree;
   const hasRefs = (state.github_refs ?? []).some(r => r.snippet);
 

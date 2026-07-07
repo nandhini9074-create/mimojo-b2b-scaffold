@@ -21,10 +21,31 @@ export interface FeatureInput {
   refs?: string[];
 }
 
+export interface TemplateGroupOutput {
+  github_refs?: GithubRef[];
+  repo_tree?: string;
+  functions_list?: any;
+  diagrams?: string;
+  api_docs?: string;
+  project_docs?: string;
+  db_schema?: string;
+  code_plan?: { files: string[] };
+  code_files?: Record<string, string>;
+  validation?: { passed: boolean; errors?: string[] };
+  repo_url?: string;
+}
+
+export interface TemplateGroupState {
+  id: 'enrollment' | 'transaction';
+  features: FeatureInput[];
+  output: TemplateGroupOutput;
+}
+
 export interface PipelineState {
   // Inputs
   projectName: string;
   features: FeatureInput[];
+  template_groups?: TemplateGroupState[];
 
   // Stage outputs
   functions_list?: any;
@@ -48,6 +69,7 @@ export interface PipelineState {
   repo_url?: string;
 
   // HITL bookkeeping
+  status?: 'idle' | 'running';
   stage: ScaffoldStage;
   history: Array<{ stage: ScaffoldStage; approved: boolean; feedback?: string; at: string }>;
   /** Per-stage last-execution duration in milliseconds. */

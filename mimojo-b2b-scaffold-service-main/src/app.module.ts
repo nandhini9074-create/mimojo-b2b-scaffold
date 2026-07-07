@@ -44,8 +44,8 @@ import { ScaffoldModule } from './scaffold/scaffold.module';
     {
       provide: PINO_LOGGER_OPTIONS_TOKEN,
       useValue: {
-        logRequests: true,
-        logResponseBody: true,
+        logRequests: false,
+        logResponseBody: false,
       },
     },
     {

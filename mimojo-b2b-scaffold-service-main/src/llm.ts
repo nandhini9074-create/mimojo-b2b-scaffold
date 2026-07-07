@@ -15,16 +15,18 @@ const _gpt41 = new AzureChatOpenAI({
   azureOpenAIApiVersion: process.env.AZURE_OPENAI_API_VERSION!,
   temperature: 0.2,
   modelName: "gpt-4.1",
+  maxTokens: 4096,
 });
 
 // Azure O4 — used for: generateArchitecture (diagrams), generateDocs (documents)
 const _o4 = new AzureChatOpenAI({
   azureOpenAIApiKey: process.env.AZURE_OPENAI_API_KEY!,
   azureOpenAIBasePath: BASE_PATH,
-  azureOpenAIApiDeploymentName: process.env.AZURE_OPENAI_DEPLOYMENT_O4!,
+  azureOpenAIApiDeploymentName: process.env.AZURE_OPENAI_DEPLOYMENT_O4 || process.env.AZURE_OPENAI_DEPLOYMENT_GPT41!,
   azureOpenAIApiVersion: process.env.AZURE_OPENAI_API_VERSION!,
-  temperature: 1,
+  temperature: 0.1,
   modelName: "o4",
+  maxTokens: 4096,
 });
 
 /**
