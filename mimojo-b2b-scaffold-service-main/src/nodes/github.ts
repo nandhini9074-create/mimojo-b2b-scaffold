@@ -22,7 +22,7 @@ export async function githubPush(state: PipelineState): Promise<{ repo_url: stri
       : (process.env.GITHUB_TOKEN_ENROLLMENT || process.env.GITHUB_TOKEN);
     const owner = group.id === 'transaction'
       ? (process.env.GITHUB_OWNER_TRANSACTION || 'nandhini9074-create')
-      : (process.env.GITHUB_OWNER_ENROLLMENT || process.env.GITHUB_OWNER || 'mojosoln');
+      : (process.env.GITHUB_OWNER_ENROLLMENT || process.env.GITHUB_OWNER || 'nandhini9074-create');
 
     const octokit = new Octokit({ auth: token });
 

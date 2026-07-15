@@ -33,7 +33,7 @@ export type TemplateName = 'enrollment' | 'transaction';
 
 export const scaffoldTemplateRegistry: Record<TemplateName, TemplateConfig> = {
   enrollment: {
-    repoUrl: `https://github.com/${process.env.GITHUB_OWNER_ENROLLMENT || 'mojosoln'}/mimojo-enrollment-template-service`,
+    repoUrl: `https://github.com/${process.env.GITHUB_OWNER_ENROLLMENT || 'nandhini9074-create'}/mimojo-enrollment-template-service-main`,
     branch: 'main',
     templates: {
       shared: [
@@ -94,6 +94,16 @@ export const scaffoldTemplateRegistry: Record<TemplateName, TemplateConfig> = {
         'src/transaction/enums/payout-transaction-status.enum.ts',
       ],
       file: [
+        'src/transaction/controllers/transaction-v2.controller.ts',
+        'src/transaction/services/payout-transaction.service.ts',
+        'src/transaction/dto/get-transaction.dto.ts',
+        'src/transaction/dto/get-payday-transaction.dto.ts',
+        'src/transaction/dto/transaction-details.dto.ts',
+        'src/transaction/entities/payout-transaction.model.ts',
+        'src/transaction/entities/consumer.model.ts',
+        'src/transaction/entities/payout-status.model.ts',
+        'src/transaction/enums/payout-status.enum.ts',
+        'src/transaction/enums/payout-transaction-status.enum.ts',
         'src/transaction/entities/payout-merchant-outlet.model.ts',
       ],
     },

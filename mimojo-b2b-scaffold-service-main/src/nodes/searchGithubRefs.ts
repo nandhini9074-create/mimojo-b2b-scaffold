@@ -12,7 +12,7 @@ const MAX_SNIPPET_SIZE = 50_000; // 50KB cap to prevent blowing AI context
 
 function getTokenForOwner(owner: string): string | undefined {
   const transactionOwner = process.env.GITHUB_OWNER_TRANSACTION || 'nandhini9074-create';
-  const enrollmentOwner = process.env.GITHUB_OWNER_ENROLLMENT || process.env.GITHUB_OWNER || 'mojosoln';
+  const enrollmentOwner = process.env.GITHUB_OWNER_ENROLLMENT || process.env.GITHUB_OWNER || 'nandhini9074-create';
 
   if (owner === transactionOwner) {
     return process.env.GITHUB_TOKEN_TRANSACTION || process.env.GITHUB_TOKEN;
@@ -100,9 +100,9 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
       templatePaths = templatePaths.filter(p => {
         // ── Transaction Group ──────────────────────────────────────────────
         if (p.endsWith('transaction.controller.ts') || p.endsWith('transaction-v2.controller.ts')) {
-          if (featureType !== 'api') {
-            // File-upload type: neither V1 nor V2 api controllers needed here
-            return false;
+          if (featureType === 'file') {
+            // Only the V2 controller has file/receipt upload & appeal endpoints
+            return p.endsWith('transaction-v2.controller.ts');
           }
           // API type: pick controller based on card scheme
           // VISA Only (or no scheme)  → V1 (transaction.controller.ts)

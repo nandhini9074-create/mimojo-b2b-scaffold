@@ -65,12 +65,41 @@ async function runModuleCodeForGroup(
   for (const file of files) {
     const fileStart = Date.now();
     const lowerFile = file.toLowerCase();
-    const isCore = lowerFile.includes('controller') || 
-                   lowerFile.includes('service') || 
-                   lowerFile.includes('module') || 
-                   lowerFile.includes('model') || 
-                   lowerFile.includes('entity') || 
-                   lowerFile.includes('dto');
+    // --- Step 1: Verbatim copy if this exact file exists in the reference snippets ---
+    const exactRef = (state.github_refs ?? []).find(
+      r => r.path && r.snippet && (r.path === file || r.path.endsWith('/' + file) || file.endsWith(r.path)),
+    );
+    if (exactRef?.snippet) {
+      codeFiles[file] = exactRef.snippet;
+      if (onFileGenerated) {
+        await onFileGenerated(file, exactRef.snippet);
+      }
+      logger.log(`Verbatim-copied ${file} from github_refs (exact match)`);
+      continue;
+    }
+
+    // --- Step 2: Non-core non-ts files get a stub comment ---
+    const isCore = lowerFile.endsWith('.ts') && (
+      lowerFile.includes('controller') ||
+      lowerFile.includes('service') ||
+      lowerFile.includes('module') ||
+      lowerFile.includes('model') ||
+      lowerFile.includes('entity') ||
+      lowerFile.includes('dto') ||
+      lowerFile.includes('guard') ||
+      lowerFile.includes('interceptor') ||
+      lowerFile.includes('decorator') ||
+      lowerFile.includes('helper') ||
+      lowerFile.includes('util') ||
+      lowerFile.includes('filter') ||
+      lowerFile.includes('common') ||
+      lowerFile.includes('config') ||
+      lowerFile.includes('enum') ||
+      lowerFile.includes('type') ||
+      lowerFile.includes('interface') ||
+      lowerFile.includes('main') ||
+      lowerFile.includes('app.')
+    );
 
     if (!isCore) {
       const commentedContent = getCommentedContent(file);

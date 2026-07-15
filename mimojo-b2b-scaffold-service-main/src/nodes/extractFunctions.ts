@@ -42,7 +42,7 @@ export async function extractFunctions(state: PipelineState, feedback?: string) 
   }
 
   state.functions_list = state.template_groups[0]?.output.functions_list;
-  
+
   const elapsed = Date.now() - totalStarted;
   logger.log(`extractFunctions completed in ${elapsed}ms`);
 
@@ -62,14 +62,23 @@ You are a senior backend architect.
 Project: ${state.projectName}
 
 Below are the EXACT source code files from a reference repository.
-Your job is to extract ALL functions/methods/endpoints that ACTUALLY EXIST in the reference code snippets below. Do NOT omit or filter out any functions/methods/endpoints; you must extract every single controller route and service method defined in the reference code.
+Your job is to extract functions/methods/endpoints that ACTUALLY EXIST in the reference code snippets below, according to the feature types listed.
 
 RULES:
-1. Extract ALL functions/methods/endpoints that are explicitly defined in the reference code snippets below. Do not omit any.
+1. Extract ONLY functions/methods/endpoints explicitly defined in the reference code snippets below.
 2. DO NOT invent, add, or guess any functions that are not present in the code.
 3. For each function, extract the EXACT name, EXACT parameters (inputs), and EXACT return type (outputs) as written in the code.
-4. The 'type' of each function should be 'api' (or 'file' if it belongs to a file-upload/batch controller or module).
-5. Map each extracted function to the most relevant feature name from the Feature List below (e.g., if a function is 'enroll', map it to 'enrollment').
+4. Map each extracted function to the most relevant feature name from the Feature List below.
+5. The "type" field of each function MUST match the type of the feature it is mapped to (either "api" or "file").
+6. TRANSACTION CONTROLLER SCOPING RULES — look at the code snippets provided and apply these rules based on what is present:
+   - If the snippet is from a transaction controller AND the feature type is "api":
+       * Extract ONLY endpoints that are pure data query/read routes (GET requests that fetch transaction lists, summaries, details, dashboards).
+       * EXCLUDE any endpoints that handle file uploads, receipt deletions, or appeal submissions. These are identifiable by: HTTP DELETE on a receipt path, @Post routes using FileInterceptor or FilesInterceptor decorators, or route paths containing "receipt" or "appeal".
+   - If the snippet is from a transaction controller AND the feature type is "file":
+       * Extract ONLY endpoints that handle file/receipt operations: receipt image uploads (multipart/form-data), receipt deletions, and appeal submissions with attached files.
+       * EXCLUDE all pure GET query/read endpoints that fetch transaction lists, summaries, or dashboards.
+   - If the snippet is from transaction.controller.ts and feature type is "api": Extract ALL endpoints defined in it as "type": "api" — no filtering needed.
+
 
 Reference code snippets:
 ${(state.github_refs ?? []).map(r => `--- ${r.path} ---\n${r.snippet || '(not available)'}`).join('\n\n')}
@@ -120,11 +129,11 @@ Given this feature list, return ONLY JSON of the form:
 
 Feature list:
 ${state.features
-  .map(
-    (f, i) =>
-      `${i + 1}. ${f.name} (Type: ${f.type || 'api'})${f.refs?.length ? `\n   Reference implementations:\n   - ${f.refs.join('\n   - ')}` : ''}`,
-  )
-  .join("\n")}
+      .map(
+        (f, i) =>
+          `${i + 1}. ${f.name} (Type: ${f.type || 'api'})${f.refs?.length ? `\n   Reference implementations:\n   - ${f.refs.join('\n   - ')}` : ''}`,
+      )
+      .join("\n")}
 
 ${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
 ${renderRefinements(state)}
