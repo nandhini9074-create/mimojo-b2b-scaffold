@@ -25,38 +25,7 @@ const STAGE_ORDER: ScaffoldStage[] = [
   'done',
 ];
 
-export function groupFeatures(features: FeatureInput[]): TemplateGroupState[] {
-  const enrollmentFeatures: FeatureInput[] = [];
-  const transactionFeatures: FeatureInput[] = [];
 
-  for (const f of features) {
-    const nameLower = (f.name || '').toLowerCase();
-    if (
-      nameLower.includes('transaction') ||
-      nameLower.includes('payout') ||
-      nameLower.includes('merchant') ||
-      nameLower.includes('outlet') ||
-      nameLower.includes('payday')
-    ) {
-      transactionFeatures.push(f);
-    } else {
-      enrollmentFeatures.push(f);
-    }
-  }
-
-  const groups: TemplateGroupState[] = [];
-  if (enrollmentFeatures.length > 0) {
-    groups.push({ id: 'enrollment', features: enrollmentFeatures, output: {} });
-  }
-  if (transactionFeatures.length > 0) {
-    groups.push({ id: 'transaction', features: transactionFeatures, output: {} });
-  }
-
-  if (groups.length === 0) {
-    groups.push({ id: 'enrollment', features: [], output: {} });
-  }
-  return groups;
-}
 
 @Injectable()
 export class ScaffoldService {
@@ -71,26 +40,12 @@ export class ScaffoldService {
   ) { }
 
   /** Step 1: kickoff. Runs `functions` stage (extract + github refs) and pauses for approval. */
-  async start(projectName: string, features?: FeatureInput[], template_groups?: any[]) {
+  async start(projectName: string, template_groups: any[] = []) {
     const sessionId = randomUUID();
-
-    let allFeatures: FeatureInput[] = [];
-    if (template_groups && template_groups.length > 0) {
-      for (const g of template_groups) {
-        if (g.features) {
-          allFeatures.push(...g.features);
-        }
-      }
-    } else if (features) {
-      allFeatures.push(...features);
-    }
-
-    const grouped = groupFeatures(allFeatures);
 
     const state: PipelineState = {
       projectName,
-      features: allFeatures,
-      template_groups: grouped,
+      template_groups,
       stage: 'functions',
       status: 'running',
       history: [],
@@ -323,9 +278,7 @@ export class ScaffoldService {
   private async requireSession(sessionId: string): Promise<PipelineState> {
     const cached = this.sessions.get(sessionId);
     if (cached) {
-      if (!cached.template_groups && cached.features) {
-        cached.template_groups = groupFeatures(cached.features);
-      }
+      // Return cached state
       return cached;
     }
     const row = await this.sessionRepo.findByPk(sessionId);
@@ -335,9 +288,6 @@ export class ScaffoldService {
     state.history = state.history ?? [];
     state.refinements = state.refinements ?? [];
     state.stage_timings = state.stage_timings ?? {};
-    if (!state.template_groups && state.features) {
-      state.template_groups = groupFeatures(state.features);
-    }
     this.sessions.set(sessionId, state);
     return state;
   }
@@ -359,7 +309,6 @@ export class ScaffoldService {
       stage: state.stage,
       status: state.status,
       projectName: state.projectName,
-      features: state.features,
       template_groups: state.template_groups,
       functions_list: state.functions_list,
       github_refs: state.github_refs,

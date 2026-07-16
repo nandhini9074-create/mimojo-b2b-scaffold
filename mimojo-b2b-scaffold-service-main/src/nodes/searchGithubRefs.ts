@@ -1,4 +1,4 @@
-import { Octokit } from "@octokit/rest";
+
 import axios from "axios";
 import * as fs from "fs";
 import * as path from "path";
@@ -30,7 +30,7 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
   logger.log('Starting searchGithubRefs...');
   const totalStarted = Date.now();
   if (!state.template_groups || state.template_groups.length === 0) {
-    state.template_groups = [{ id: 'enrollment', features: state.features || [], output: {} }];
+    return state.github_refs;
   }
 
   for (const group of state.template_groups) {
@@ -53,8 +53,6 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
       treeBranch = parsedRepoUrl.branch;
     }
 
-    const groupToken = getTokenForOwner(treeOwner);
-    const groupOctokit = groupToken ? new Octokit({ auth: groupToken }) : null;
 
     const fetchedPaths = new Set<string>();
 
@@ -77,16 +75,7 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
 
     // Fetch per-feature files
     for (const feature of group.features) {
-      if (feature.refs?.length) {
-        for (const url of feature.refs) {
-          const parsed = parseGithubUrl(url);
-          const snippet = await fetchRawContent(parsed);
-          if (snippet !== undefined) {
-            groupRefs.push({ feature: feature.name, repo: parsed.repo, path: parsed.path, url: parsed.url, snippet });
-          }
-        }
-        continue;
-      }
+
 
       const featureType = feature.type || 'api';
       let templatePaths = config.templates[featureType] ?? [];
@@ -130,32 +119,14 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
 
       if (templatePaths.length) {
         const schemeTag = (feature as any).scheme ? ` [scheme: ${(feature as any).scheme}]` : '';
-        logger.log(`Auto-resolving ${templatePaths.length} refs for group ${group.id} feature "${feature.name}"${schemeTag} → [${templatePaths.map(p => p.split('/').pop()).join(', ')}]`);
+        logger.log(`Auto-resolving ${templatePaths.length} refs for group ${group.id} feature "${group.id}"${schemeTag} → [${templatePaths.map(p => p.split('/').pop()).join(', ')}]`);
         for (const fp of templatePaths) {
-          await fetchGroupFile(fp, feature.name);
+          await fetchGroupFile(fp, group.id);
         }
         continue;
       }
 
-      if (!groupOctokit || !treeOwner) continue;
-      try {
-        const q = `${feature.name} org:${treeOwner} repo:${treeRepo} extension:ts`;
-        const { data } = await groupOctokit.search.code({ q, per_page: 1 });
-        const top = data.items?.[0];
-        if (top) {
-          const parsed = parseGithubUrl(top.html_url);
-          const snippet = await fetchRawContent(parsed);
-          if (snippet !== undefined) {
-            groupRefs.push({
-              feature: feature.name,
-              repo: top.repository.full_name,
-              path: top.path,
-              url: top.html_url,
-              snippet,
-            });
-          }
-        }
-      } catch (_err) { /* ignore search error */ }
+
     }
 
     group.output.github_refs = groupRefs;

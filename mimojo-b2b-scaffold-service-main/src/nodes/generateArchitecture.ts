@@ -8,7 +8,7 @@ const logger = new Logger('generateArchitecture');
 export async function generateArchitecture(state: PipelineState, feedback?: string) {
   const totalStarted = Date.now();
   if (!state.template_groups || state.template_groups.length === 0) {
-    state.template_groups = [{ id: 'enrollment', features: state.features || [], output: {} }];
+    return state.diagrams;
   }
 
   for (const group of state.template_groups) {
@@ -17,10 +17,9 @@ export async function generateArchitecture(state: PipelineState, feedback?: stri
     const groupState = {
       ...state,
       github_refs: group.output.github_refs,
-      features: group.features,
       functions_list: group.output.functions_list,
     };
-    group.output.diagrams = await runArchitectureForGroup(groupState, feedback);
+    group.output.diagrams = await runArchitectureForGroup(groupState, group.id, feedback);
     logger.log(`Diagrams for group "${group.id}" generated in ${Date.now() - started}ms`);
   }
 
@@ -32,11 +31,8 @@ export async function generateArchitecture(state: PipelineState, feedback?: stri
   return state.diagrams;
 }
 
-async function runArchitectureForGroup(state: PipelineState, feedback?: string) {
-  const isTx = state.features.some(f => {
-    const name = (f.name || '').toLowerCase();
-    return name.includes('transaction') || name.includes('payout') || name.includes('merchant') || name.includes('outlet') || name.includes('payday');
-  });
+async function runArchitectureForGroup(state: PipelineState, groupId: string, feedback?: string) {
+  const isTx = groupId === 'transaction';
 
   const flowName = isTx ? 'Transaction / Core Processing' : 'Enrollment / Onboarding';
   const flowListPrompt = `  1. ### ${flowName}`;

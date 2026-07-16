@@ -12,7 +12,7 @@ export async function generateModuleCode(
 ): Promise<Record<string, string>> {
   const totalStarted = Date.now();
   if (!state.template_groups || state.template_groups.length === 0) {
-    state.template_groups = [{ id: 'enrollment', features: state.features || [], output: {} }];
+    return state.code_files;
   }
 
   for (const group of state.template_groups) {
@@ -21,7 +21,6 @@ export async function generateModuleCode(
     const groupState = {
       ...state,
       github_refs: group.output.github_refs,
-      features: group.features,
       functions_list: group.output.functions_list,
       db_schema: group.output.db_schema,
       repo_tree: group.output.repo_tree,
@@ -118,8 +117,7 @@ async function runModuleCodeForGroup(
       .map(r => `--- Reference: ${r.path} ---\n${r.snippet}`)
       .join('\n\n');
 
-    const prompt = hasRefs
-      ? `
+    const prompt = `
 You are generating code for file: ${file}
 Project: ${state.projectName}
 
@@ -151,21 +149,6 @@ ABSOLUTE RULES — VIOLATION IS UNACCEPTABLE:
     - If the file is for a file-upload / batch feature, map its structure and logic to 'file-upload.controller.ts' / 'file-upload.service.ts'.
     - If the file is for a standard API endpoint, map its structure and logic to 'enroll.controller.ts' / 'unenroll.controller.ts' / 'enroll.service.ts' / 'unenroll.service.ts'.
 14. The generated controllers and services MUST ONLY contain the functions/methods listed in the Functions list. Any routes, methods, or logic present in the reference templates that are not in the Functions list must be filtered out and omitted.
-
-${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
-${renderRefinements(state)}
-
-Return ONLY the file contents — no markdown fences, no commentary.
-`
-      : `
-Generate production-grade NodeJS (NestJS + Sequelize-TypeScript) code for file: ${file}
-Project: ${state.projectName}
-
-PostgreSQL schema:
-${state.db_schema}
-
-Functions:
-${JSON.stringify(state.functions_list, null, 2)}
 
 ${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
 ${renderRefinements(state)}

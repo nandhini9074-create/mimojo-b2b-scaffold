@@ -8,7 +8,7 @@ const logger = new Logger('generateDocs');
 export async function generateDocs(state: PipelineState, feedback?: string) {
   const totalStarted = Date.now();
   if (!state.template_groups || state.template_groups.length === 0) {
-    state.template_groups = [{ id: 'enrollment', features: state.features || [], output: {} }];
+    return '';
   }
 
   for (const group of state.template_groups) {
@@ -17,7 +17,6 @@ export async function generateDocs(state: PipelineState, feedback?: string) {
     const groupState = {
       ...state,
       github_refs: group.output.github_refs,
-      features: group.features,
       functions_list: group.output.functions_list,
     };
     const md = await runDocsForGroup(groupState, feedback);

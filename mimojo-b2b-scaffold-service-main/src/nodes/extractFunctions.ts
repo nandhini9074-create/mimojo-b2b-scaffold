@@ -1,6 +1,6 @@
 import { gpt41 } from "../llm";
 import { safeJsonParse } from "../common/utils/json";
-import { PipelineState } from "../state";
+import { PipelineState, FeatureInput } from "../state";
 import { renderRefinements } from "./refinements";
 import { Logger } from "@nestjs/common";
 
@@ -9,7 +9,7 @@ const logger = new Logger('extractFunctions');
 export async function extractFunctions(state: PipelineState, feedback?: string) {
   const totalStarted = Date.now();
   if (!state.template_groups || state.template_groups.length === 0) {
-    state.template_groups = [{ id: 'enrollment', features: state.features || [], output: {} }];
+    return state.functions_list;
   }
 
   for (const group of state.template_groups) {
@@ -18,19 +18,28 @@ export async function extractFunctions(state: PipelineState, feedback?: string) 
     const groupState = {
       ...state,
       github_refs: group.output.github_refs,
-      features: group.features,
     };
-    group.output.functions_list = await runExtractForGroup(groupState, feedback);
+    group.output.functions_list = await runExtractForGroup(groupState, group.id, group.features, feedback);
 
     // Filter functions to strictly match the user's selected feature type (api vs file)
     if (group.output.functions_list?.modules) {
       for (const mod of group.output.functions_list.modules) {
         if (mod.functions) {
           mod.functions = mod.functions.filter(fn => {
-            const mappedFeature = group.features.find(f => f.name.toLowerCase() === fn.feature?.toLowerCase());
-            if (mappedFeature) {
-              const expectedType = mappedFeature.type || 'api'; // 'api' or 'file'
-              return fn.type === expectedType;
+            const matchingFeatures = group.features.filter(f => group.id.toLowerCase() === fn.feature?.toLowerCase());
+            if (matchingFeatures.length > 0) {
+              // The function's type must be one of the types selected by the user for this group
+              const isValidType = matchingFeatures.some(f => (f.type || 'api') === fn.type);
+              if (!isValidType) return false;
+
+              // Strict validation: Prevent LLM from categorizing GET queries as 'file' and uploads as 'api'
+              const name = (fn.name || '').toLowerCase();
+              const isFileUploadLogic = name.includes('file') || name.includes('upload') || name.includes('batch') || name.includes('receipt') || name.includes('appeal');
+              
+              if (fn.type === 'file' && !isFileUploadLogic) return false;
+              if (fn.type === 'api' && isFileUploadLogic) return false;
+
+              return true;
             }
             return true;
           });
@@ -49,15 +58,14 @@ export async function extractFunctions(state: PipelineState, feedback?: string) 
   return state.functions_list;
 }
 
-async function runExtractForGroup(state: PipelineState, feedback?: string) {
+async function runExtractForGroup(state: PipelineState, groupId: string, features: FeatureInput[], feedback?: string) {
   const hasRefs = (state.github_refs ?? []).some(r => r.snippet);
 
   if (state.github_refs?.length && !hasRefs) {
     throw new Error('Failed to download reference snippets from GitHub! Please check your GITHUB_TOKEN and ensure the repository/URL is accessible.');
   }
 
-  const prompt = hasRefs
-    ? `
+  const prompt = `
 You are a senior backend architect.
 Project: ${state.projectName}
 
@@ -103,37 +111,7 @@ Return ONLY JSON of the form:
 }
 
 Feature List:
-${state.features.map((f, i) => `${i + 1}. ${f.name} (Type: ${f.type || 'api'})`).join("\n")}
-
-${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
-${renderRefinements(state)}
-`
-    : `
-You are a senior backend architect.
-Project: ${state.projectName}
-
-RULES:
-1. The 'type' of each function MUST match the type of the feature it is mapped to. For example, if a function belongs to a feature whose type is 'api', then the function's 'type' MUST be 'api'. If the feature's type is 'file', the function's 'type' MUST be 'file'.
-
-Given this feature list, return ONLY JSON of the form:
-{
-  "modules": [
-    {
-      "name": "order",
-      "functions": [
-        { "name": "createOrder", "type": "api", "description": "...", "inputs": [...], "outputs": [...], "feature": "create order" }
-      ]
-    }
-  ]
-}
-
-Feature list:
-${state.features
-      .map(
-        (f, i) =>
-          `${i + 1}. ${f.name} (Type: ${f.type || 'api'})${f.refs?.length ? `\n   Reference implementations:\n   - ${f.refs.join('\n   - ')}` : ''}`,
-      )
-      .join("\n")}
+${features.map((f, i) => `${i + 1}. ${groupId} (Type: ${f.type || 'api'})`).join("\n")}
 
 ${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
 ${renderRefinements(state)}

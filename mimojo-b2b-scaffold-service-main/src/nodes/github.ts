@@ -8,7 +8,7 @@ export async function githubPush(state: PipelineState): Promise<{ repo_url: stri
   logger.log('Starting githubPush...');
   const totalStarted = Date.now();
   if (!state.template_groups || state.template_groups.length === 0) {
-    state.template_groups = [{ id: 'enrollment', features: state.features || [], output: {} }];
+    return { repo_url: state.repo_url || "" };
   }
 
   for (const group of state.template_groups) {
@@ -20,14 +20,15 @@ export async function githubPush(state: PipelineState): Promise<{ repo_url: stri
     const token = group.id === 'transaction'
       ? (process.env.GITHUB_TOKEN_TRANSACTION || process.env.GITHUB_TOKEN)
       : (process.env.GITHUB_TOKEN_ENROLLMENT || process.env.GITHUB_TOKEN);
-    const owner = group.id === 'transaction'
+    let owner = group.id === 'transaction'
       ? (process.env.GITHUB_OWNER_TRANSACTION || 'nandhini9074-create')
       : (process.env.GITHUB_OWNER_ENROLLMENT || process.env.GITHUB_OWNER || 'nandhini9074-create');
 
     const octokit = new Octokit({ auth: token });
 
     // Create repo (idempotent — ignore "already exists")
-    let htmlUrl: string;
+    let htmlUrl: string = '';
+
     try {
       let userLogin = '';
       try {
@@ -49,12 +50,14 @@ export async function githubPush(state: PipelineState): Promise<{ repo_url: stri
             const repo = await octokit.repos.get({ owner, repo: repoName });
             htmlUrl = repo.data.html_url;
           } else {
+            logger.warn(`Failed to create repo in org ${owner}, falling back to personal account ${userLogin}`);
             const repo = await octokit.repos.createForAuthenticatedUser({
               name: repoName,
               auto_init: true,
               private: true,
             });
             htmlUrl = repo.data.html_url;
+            owner = userLogin; // <--- The crucial fix! 
           }
         }
       } else {

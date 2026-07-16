@@ -661,7 +661,11 @@
     }
 
     /* ---- Cascading Feature Selector ---- */
-    .cascade-selector { display: flex; flex-direction: column; gap: 10px; }
+    .cascade-selector {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
 
     .cascade-template-row {
       background: var(--panel2);
@@ -671,9 +675,17 @@
       transition: border-color .2s;
     }
 
-    .cascade-template-row.selected { border-color: var(--accent); }
-    .cascade-template-row.enrollment.selected { border-color: #0ea5e9; }
-    .cascade-template-row.transaction.selected { border-color: #f97316; }
+    .cascade-template-row.selected {
+      border-color: var(--accent);
+    }
+
+    .cascade-template-row.enrollment.selected {
+      border-color: #0ea5e9;
+    }
+
+    .cascade-template-row.transaction.selected {
+      border-color: #f97316;
+    }
 
     .cascade-header {
       display: flex;
@@ -684,7 +696,9 @@
       user-select: none;
     }
 
-    .cascade-header:hover { background: rgba(255,255,255,.04); }
+    .cascade-header:hover {
+      background: rgba(255, 255, 255, .04);
+    }
 
     .cascade-toggle-icon {
       width: 20px;
@@ -700,14 +714,27 @@
     }
 
     .cascade-template-row.selected .cascade-toggle-icon.enrollment {
-      background: #0ea5e9; border-color: #0ea5e9; color: #fff;
-    }
-    .cascade-template-row.selected .cascade-toggle-icon.transaction {
-      background: #f97316; border-color: #f97316; color: #fff;
+      background: #0ea5e9;
+      border-color: #0ea5e9;
+      color: #fff;
     }
 
-    .cascade-title { font-weight: 700; font-size: 13px; flex: 1; }
-    .cascade-subtitle { font-size: 10px; color: var(--muted); }
+    .cascade-template-row.selected .cascade-toggle-icon.transaction {
+      background: #f97316;
+      border-color: #f97316;
+      color: #fff;
+    }
+
+    .cascade-title {
+      font-weight: 700;
+      font-size: 13px;
+      flex: 1;
+    }
+
+    .cascade-subtitle {
+      font-size: 10px;
+      color: var(--muted);
+    }
 
     .cascade-body {
       padding: 0 12px 12px;
@@ -716,14 +743,40 @@
       animation: fadeIn .15s ease;
     }
 
-    .cascade-template-row.selected .cascade-body { display: block; }
+    .cascade-template-row.selected .cascade-body {
+      display: block;
+    }
 
-    @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:none; } }
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
 
-    .cascade-option-group { margin-top: 10px; }
-    .cascade-option-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; font-weight: 600; text-transform: uppercase; letter-spacing:.06em; }
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
 
-    .cascade-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+    .cascade-option-group {
+      margin-top: 10px;
+    }
+
+    .cascade-option-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+    }
+
+    .cascade-pills {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
 
     .cascade-pill {
       padding: 5px 14px;
@@ -737,13 +790,42 @@
       transition: all .15s;
     }
 
-    .cascade-pill:hover { border-color: var(--accent); color: var(--fg); }
-    .cascade-pill.active { background: var(--accent); color: #000; border-color: var(--accent); }
-    .cascade-pill.enrollment-pill.active { background: #0ea5e9; border-color: #0ea5e9; color: #fff; }
-    .cascade-pill.transaction-pill.active { background: #f97316; border-color: #f97316; color: #fff; }
-    .cascade-pill.scheme-pill.active { background: #8b5cf6; border-color: #8b5cf6; color: #fff; }
+    .cascade-pill:hover {
+      border-color: var(--accent);
+      color: var(--fg);
+    }
 
-    .cascade-sub-group { margin-top: 10px; padding: 8px 10px; background: rgba(255,255,255,.03); border-radius: 8px; border: 1px solid var(--border); }
+    .cascade-pill.active {
+      background: var(--accent);
+      color: #000;
+      border-color: var(--accent);
+    }
+
+    .cascade-pill.enrollment-pill.active {
+      background: #0ea5e9;
+      border-color: #0ea5e9;
+      color: #fff;
+    }
+
+    .cascade-pill.transaction-pill.active {
+      background: #f97316;
+      border-color: #f97316;
+      color: #fff;
+    }
+
+    .cascade-pill.scheme-pill.active {
+      background: #8b5cf6;
+      border-color: #8b5cf6;
+      color: #fff;
+    }
+
+    .cascade-sub-group {
+      margin-top: 10px;
+      padding: 8px 10px;
+      background: rgba(255, 255, 255, .03);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
 
     /* Toggle pill bar — appears only for multi-block sessions */
     .view-toggle {
@@ -883,8 +965,10 @@
               <div class="cascade-option-group">
                 <div class="cascade-option-label">Select Type</div>
                 <div class="cascade-pills" id="enrollTypePills">
-                  <div class="cascade-pill enrollment-pill" data-group="enrollment" data-type="api" onclick="selectType(this)">API</div>
-                  <div class="cascade-pill enrollment-pill" data-group="enrollment" data-type="file" onclick="selectType(this)">File Upload</div>
+                  <div class="cascade-pill enrollment-pill" data-group="enrollment" data-type="api"
+                    onclick="selectType(this)">API</div>
+                  <div class="cascade-pill enrollment-pill" data-group="enrollment" data-type="file"
+                    onclick="selectType(this)">File Upload</div>
                 </div>
               </div>
             </div>
@@ -903,8 +987,10 @@
               <div class="cascade-option-group">
                 <div class="cascade-option-label">Select Type</div>
                 <div class="cascade-pills" id="transactionTypePills">
-                  <div class="cascade-pill transaction-pill" data-group="transaction" data-type="api" onclick="selectType(this)">API</div>
-                  <div class="cascade-pill transaction-pill" data-group="transaction" data-type="file" onclick="selectType(this)">File Upload</div>
+                  <div class="cascade-pill transaction-pill" data-group="transaction" data-type="api"
+                    onclick="selectType(this)">API</div>
+                  <div class="cascade-pill transaction-pill" data-group="transaction" data-type="file"
+                    onclick="selectType(this)">File Upload</div>
                 </div>
               </div>
               <!-- Card Scheme sub-option (only for API) -->
@@ -913,7 +999,8 @@
                 <div class="cascade-pills" id="schemePills">
                   <div class="cascade-pill scheme-pill" data-scheme="VISA" onclick="selectScheme(this)">VISA</div>
                   <div class="cascade-pill scheme-pill" data-scheme="MC" onclick="selectScheme(this)">MC</div>
-                  <div class="cascade-pill scheme-pill" data-scheme="MC and VISA" onclick="selectScheme(this)">MC &amp; VISA</div>
+                  <div class="cascade-pill scheme-pill" data-scheme="MC and VISA" onclick="selectScheme(this)">MC &amp;
+                    VISA</div>
                 </div>
               </div>
             </div>
@@ -1100,22 +1187,16 @@
       const groups = [];
 
       if (cascadeState.enrollment.enabled && cascadeState.enrollment.type) {
-        const featureName = cascadeState.enrollment.type === 'api' ? 'enrollment' : 'bulk enrollment';
         groups.push({
           id: 'enrollment',
-          features: [{ name: featureName, type: cascadeState.enrollment.type }],
+          features: [{ type: cascadeState.enrollment.type }],
         });
       }
 
       if (cascadeState.transaction.enabled && cascadeState.transaction.type) {
-        let featureName = 'transaction';
-        if (cascadeState.transaction.type === 'api' && cascadeState.transaction.scheme) {
-          featureName = `transaction (${cascadeState.transaction.scheme})`;
-        }
         groups.push({
           id: 'transaction',
           features: [{
-            name: featureName,
             type: cascadeState.transaction.type,
             scheme: cascadeState.transaction.scheme || null,
           }],
@@ -1126,8 +1207,8 @@
     }
 
     // Legacy compat — no-ops
-    function addTemplateBlock() {}
-    function syncAddBlockButton() {}
+    function addTemplateBlock() { }
+    function syncAddBlockButton() { }
 
     // --------- UI updates ---------
     function fmtMs(ms) {
@@ -1614,7 +1695,7 @@
         setTimeout(() => {
           const listContainer = document.getElementById(listId);
           if (!listContainer) return;
-          
+
           // Restore scroll positions
           const ul = listContainer.querySelector('ul');
           if (ul) ul.scrollTop = oldListScroll;
@@ -1626,7 +1707,7 @@
               activeCodeFiles[suffix] = li.dataset.path;
               listContainer.querySelectorAll('li').forEach(x => x.classList.remove('active'));
               li.classList.add('active');
-              
+
               const targetPre = document.getElementById(previewId);
               if (targetPre) {
                 targetPre.textContent = codeFiles[li.dataset.path];

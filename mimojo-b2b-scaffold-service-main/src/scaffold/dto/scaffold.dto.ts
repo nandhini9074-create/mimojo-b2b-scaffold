@@ -3,11 +3,6 @@ import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class FeatureDto {
-  @ApiProperty({ example: 'create order' })
-  @IsNotEmpty()
-  @IsString()
-  name: string;
-
   @ApiProperty({ example: 'api', enum: ['api', 'file'], required: false })
   @IsOptional()
   @IsEnum(['api', 'file'])
@@ -38,21 +33,6 @@ export class StartScaffoldDto {
   @IsNotEmpty()
   @IsString()
   projectName: string;
-
-  @ApiProperty({
-    type: [FeatureDto],
-    required: false,
-    example: [
-      { name: 'create order', type: 'api' },
-      { name: 'file upload', type: 'file' },
-    ],
-    description: 'Feature list. Template references are auto-resolved from the server config based on feature type.',
-  })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => FeatureDto)
-  features?: FeatureDto[];
 
   @ApiProperty({
     type: [TemplateGroupDto],

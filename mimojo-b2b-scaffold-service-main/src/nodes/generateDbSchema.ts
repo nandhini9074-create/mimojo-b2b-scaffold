@@ -8,7 +8,7 @@ const logger = new Logger('generateDbSchema');
 export async function generateDbSchema(state: PipelineState, feedback?: string) {
   const totalStarted = Date.now();
   if (!state.template_groups || state.template_groups.length === 0) {
-    state.template_groups = [{ id: 'enrollment', features: state.features || [], output: {} }];
+    return state.db_schema;
   }
 
   for (const group of state.template_groups) {
@@ -17,7 +17,6 @@ export async function generateDbSchema(state: PipelineState, feedback?: string) 
     const groupState = {
       ...state,
       github_refs: group.output.github_refs,
-      features: group.features,
       functions_list: group.output.functions_list,
     };
     group.output.db_schema = await runDbSchemaForGroup(groupState, feedback);
@@ -49,9 +48,10 @@ GitHub references to mirror structure from:
 ${JSON.stringify(state.github_refs ?? [], null, 2)}
 
 CRITICAL INSTRUCTION:
-1. You MUST extract and use the exact table names, column names, constraints, and data types found in the provided GitHub references (such as Sequelize models or DTOs). 
-2. Do NOT invent your own fields, and do NOT omit any fields that exist in the reference. The schema must mirror the reference fields EXACTLY.
-3. For functions of type "file" or when requested by the scenario, if some database tables (e.g., "mc_enrollment_duplicates" or similar batch tables) do not exist as Sequelize model reference files, you MUST dynamically synthesize the DDL schema for them. Create logical columns (such as id, file_name, file_record_num, duplicate_count, status, error_details, timestamps) corresponding to the needs of the file upload service.
+1. You MUST extract and use ONLY the exact table names, column names, constraints, and data types found in the provided GitHub references (Sequelize models or DTOs).
+2. Do NOT invent or add any tables, columns, or constraints that are NOT explicitly defined in the reference files above.
+3. Do NOT omit any fields that exist in the reference. The schema must mirror the reference fields EXACTLY.
+4. If a table is not backed by a Sequelize @Table model or a DTO in the GitHub references, DO NOT generate it.
 
 ${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
 ${renderRefinements(state)}

@@ -16,7 +16,6 @@ export interface GithubRef {
 }
 
 export interface FeatureInput {
-  name: string;
   type?: 'api' | 'file';
   refs?: string[];
 }
@@ -44,7 +43,6 @@ export interface TemplateGroupState {
 export interface PipelineState {
   // Inputs
   projectName: string;
-  features: FeatureInput[];
   template_groups?: TemplateGroupState[];
 
   // Stage outputs
