@@ -375,14 +375,6 @@ export class ScaffoldService {
         state.code_files = await generateModuleCode(state, feedback, async () => {
           await this.persist(sessionId, state);
         });
-        // validate + auto-fix loop (max 2 attempts)
-        for (let attempt = 0; attempt < 2; attempt++) {
-          const v = await validate(state);
-          state.validation = v;
-          if (v?.passed) break;
-          state.code_files = await fix(state).then((r) => r.code_files);
-          await this.persist(sessionId, state);
-        }
         break;
       }
       case 'github': {

@@ -21,31 +21,7 @@ export async function extractFunctions(state: PipelineState, feedback?: string) 
     };
     group.output.functions_list = await runExtractForGroup(groupState, group.id, group.features, feedback);
 
-    // Filter functions to strictly match the user's selected feature type (api vs file)
-    if (group.output.functions_list?.modules) {
-      for (const mod of group.output.functions_list.modules) {
-        if (mod.functions) {
-          mod.functions = mod.functions.filter(fn => {
-            const matchingFeatures = group.features.filter(f => group.id.toLowerCase() === fn.feature?.toLowerCase());
-            if (matchingFeatures.length > 0) {
-              // The function's type must be one of the types selected by the user for this group
-              const isValidType = matchingFeatures.some(f => (f.type || 'api') === fn.type);
-              if (!isValidType) return false;
 
-              // Strict validation: Prevent LLM from categorizing GET queries as 'file' and uploads as 'api'
-              const name = (fn.name || '').toLowerCase();
-              const isFileUploadLogic = name.includes('file') || name.includes('upload') || name.includes('batch') || name.includes('receipt') || name.includes('appeal');
-              
-              if (fn.type === 'file' && !isFileUploadLogic) return false;
-              if (fn.type === 'api' && isFileUploadLogic) return false;
-
-              return true;
-            }
-            return true;
-          });
-        }
-      }
-    }
 
     logger.log(`Functions for group "${group.id}" extracted in ${Date.now() - started}ms`);
   }

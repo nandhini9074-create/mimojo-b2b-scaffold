@@ -33,7 +33,7 @@ export type TemplateName = 'enrollment' | 'transaction';
 
 export const scaffoldTemplateRegistry: Record<TemplateName, TemplateConfig> = {
   enrollment: {
-    repoUrl: `https://github.com/${process.env.GITHUB_OWNER_ENROLLMENT || 'nandhini9074-create'}/mimojo-enrollment-template-service-main`,
+    repoUrl: `https://github.com/${process.env.GITHUB_OWNER_ENROLLMENT}/mimojo-enrollment-template-service-main`,
     branch: 'main',
     templates: {
       shared: [
@@ -67,7 +67,7 @@ export const scaffoldTemplateRegistry: Record<TemplateName, TemplateConfig> = {
     },
   },
   transaction: {
-    repoUrl: `https://github.com/${process.env.GITHUB_OWNER_TRANSACTION || 'nandhini9074-create'}/mimojo-transaction-template-service`,
+    repoUrl: `https://github.com/${process.env.GITHUB_OWNER_TRANSACTION}/mimojo-transaction-template-service`,
     branch: 'main',
     templates: {
       shared: [
@@ -109,5 +109,3 @@ export const scaffoldTemplateRegistry: Record<TemplateName, TemplateConfig> = {
     },
   },
 };
-
-export const scaffoldTemplatesConfig = scaffoldTemplateRegistry.enrollment;

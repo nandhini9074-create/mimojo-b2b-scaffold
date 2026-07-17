@@ -77,26 +77,16 @@ async function runModuleCodeForGroup(
       continue;
     }
 
-    // --- Step 2: Non-core non-ts files get a stub comment ---
+    /*
+    // --- Step 2 (LEGACY): Non-core non-ts files get a stub comment ---
+    // Kept here for reference.
     const isCore = lowerFile.endsWith('.ts') && (
-      lowerFile.includes('controller') ||
-      lowerFile.includes('service') ||
-      lowerFile.includes('module') ||
-      lowerFile.includes('model') ||
-      lowerFile.includes('entity') ||
-      lowerFile.includes('dto') ||
-      lowerFile.includes('guard') ||
-      lowerFile.includes('interceptor') ||
-      lowerFile.includes('decorator') ||
-      lowerFile.includes('helper') ||
-      lowerFile.includes('util') ||
-      lowerFile.includes('filter') ||
-      lowerFile.includes('common') ||
-      lowerFile.includes('config') ||
-      lowerFile.includes('enum') ||
-      lowerFile.includes('type') ||
-      lowerFile.includes('interface') ||
-      lowerFile.includes('main') ||
+      lowerFile.includes('controller') || lowerFile.includes('service') || lowerFile.includes('module') ||
+      lowerFile.includes('model') || lowerFile.includes('entity') || lowerFile.includes('dto') ||
+      lowerFile.includes('guard') || lowerFile.includes('interceptor') || lowerFile.includes('decorator') ||
+      lowerFile.includes('helper') || lowerFile.includes('util') || lowerFile.includes('filter') ||
+      lowerFile.includes('common') || lowerFile.includes('config') || lowerFile.includes('enum') ||
+      lowerFile.includes('type') || lowerFile.includes('interface') || lowerFile.includes('main') ||
       lowerFile.includes('app.')
     );
 
@@ -109,6 +99,7 @@ async function runModuleCodeForGroup(
       logger.log(`Generated non-core file ${file} as commented template`);
       continue;
     }
+    */
 
     logger.log(`Generating code for ${file}... please wait...`);
     // Find the most relevant reference snippet for this file type

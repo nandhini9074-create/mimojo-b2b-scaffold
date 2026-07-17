@@ -11,16 +11,13 @@ const logger = new Logger('searchGithubRefs');
 const MAX_SNIPPET_SIZE = 50_000; // 50KB cap to prevent blowing AI context
 
 function getTokenForOwner(owner: string): string | undefined {
-  const transactionOwner = process.env.GITHUB_OWNER_TRANSACTION || 'nandhini9074-create';
-  const enrollmentOwner = process.env.GITHUB_OWNER_ENROLLMENT || process.env.GITHUB_OWNER || 'nandhini9074-create';
-
-  if (owner === transactionOwner) {
-    return process.env.GITHUB_TOKEN_TRANSACTION || process.env.GITHUB_TOKEN;
+  if (owner === process.env.GITHUB_OWNER_TRANSACTION) {
+    return process.env.GITHUB_TOKEN_TRANSACTION;
   }
-  if (owner === enrollmentOwner) {
-    return process.env.GITHUB_TOKEN_ENROLLMENT || process.env.GITHUB_TOKEN;
+  if (owner === process.env.GITHUB_OWNER_ENROLLMENT) {
+    return process.env.GITHUB_TOKEN_ENROLLMENT;
   }
-  return process.env.GITHUB_TOKEN;
+  return undefined;
 }
 
 /**
@@ -76,14 +73,12 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
     // Fetch per-feature files
     for (const feature of group.features) {
 
-
+      // Determine if this feature is an 'api' or 'file' flow (defaults to 'api')
       const featureType = feature.type || 'api';
+
+      // Get the list of template files for this specific type from the config
       let templatePaths = config.templates[featureType] ?? [];
-      const hasControllerOrService = templatePaths.some(p => p.includes('controller') || p.includes('service'));
-      if (!hasControllerOrService) {
-        const otherType = featureType === 'api' ? 'file' : 'api';
-        templatePaths = [...templatePaths, ...(config.templates[otherType] ?? [])];
-      }
+
 
       // Filter controllers based on feature type (API vs File Upload) and card scheme for Transaction group
       templatePaths = templatePaths.filter(p => {
@@ -93,7 +88,6 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
             // Only the V2 controller has file/receipt upload & appeal endpoints
             return p.endsWith('transaction-v2.controller.ts');
           }
-          // API type: pick controller based on card scheme
           // VISA Only (or no scheme)  → V1 (transaction.controller.ts)
           // MC Only | MC and VISA     → V2 (transaction-v2.controller.ts)
           const scheme = (feature as any).scheme as string | undefined;
@@ -142,13 +136,6 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
   const elapsed = Date.now() - totalStarted;
   logger.log(`Total refs fetched: ${state.github_refs.length} in ${elapsed}ms`);
 
-  try {
-    const debugContent = state.github_refs.map(r => `/* ===== SOURCE: ${r.url} ===== */\n${r.snippet}`).join('\n\n');
-    const debugPath = path.join(process.cwd(), 'github_snippets_debug.txt');
-    fs.writeFileSync(debugPath, debugContent, 'utf-8');
-  } catch (err) {
-    logger.warn('Failed to write debug snippet file: ' + (err as Error).message);
-  }
 
   return state.github_refs;
 }

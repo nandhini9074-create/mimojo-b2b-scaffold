@@ -34,7 +34,7 @@ export async function githubPush(state: PipelineState): Promise<{ repo_url: stri
       try {
         const user = await octokit.users.getAuthenticated();
         userLogin = user.data.login;
-      } catch (_) {}
+      } catch (_) { }
 
       if (userLogin && userLogin.toLowerCase() !== owner.toLowerCase()) {
         try {
@@ -106,7 +106,7 @@ export async function githubPush(state: PipelineState): Promise<{ repo_url: stri
   }
 
   state.repo_url = state.template_groups[0]?.output.repo_url;
-  
+
   const elapsed = Date.now() - totalStarted;
   logger.log(`githubPush completed in ${elapsed}ms`);
 
