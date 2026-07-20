@@ -13,6 +13,7 @@ export interface GithubRef {
   path: string;
   url: string;
   snippet?: string;
+  full_content?: string;
 }
 
 export interface FeatureInput {

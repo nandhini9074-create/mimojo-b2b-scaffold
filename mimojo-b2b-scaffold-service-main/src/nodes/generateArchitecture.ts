@@ -24,7 +24,7 @@ export async function generateArchitecture(state: PipelineState, feedback?: stri
   }
 
   state.diagrams = state.template_groups[0]?.output.diagrams;
-  
+
   const elapsed = Date.now() - totalStarted;
   logger.log(`generateArchitecture completed in ${elapsed}ms`);
 

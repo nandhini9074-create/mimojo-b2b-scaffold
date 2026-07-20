@@ -59,9 +59,16 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
 
       const url = `${groupRepoUrl}/blob/${groupBranch}/${filePath.replace(/^\/+/, '')}`;
       const parsed = parseGithubUrl(url);
-      const snippet = await fetchRawContent(parsed);
-      if (snippet !== undefined) {
-        groupRefs.push({ feature: featureName, repo: parsed.repo, path: parsed.path, url: parsed.url, snippet });
+      const result = await fetchRawContent(parsed);
+      if (result !== undefined) {
+        groupRefs.push({
+          feature: featureName,
+          repo: parsed.repo,
+          path: parsed.path,
+          url: parsed.url,
+          snippet: result.snippet,           // ≤50 KB — safe for LLM context
+          full_content: result.full_content, // complete raw file — used for verbatim copy
+        });
       }
     }
 
@@ -189,15 +196,25 @@ async function fetchRepoTree(
  * Uses GITHUB_TOKEN for private repos if available.
  * Returns undefined on failure (private repo, 404, network error).
  */
+/**
+ * Fetches raw file content from the GitHub API.
+ *
+ * Returns an object with two separate representations:
+ * - `snippet`      : Content capped at 50 KB — safe to embed directly in LLM prompts.
+ * - `full_content` : Complete, un-truncated raw content — used for verbatim file copy
+ *                    during code generation so that large files are never silently cut off.
+ *
+ * Returns `undefined` on any network / auth / 404 failure.
+ */
 async function fetchRawContent(
   parsed: ReturnType<typeof parseGithubUrl>,
-): Promise<string | undefined> {
+): Promise<{ snippet: string; full_content: string } | undefined> {
   if (!parsed.owner || !parsed.repoName || !parsed.path) return undefined;
   // Use the official GitHub API to fetch raw contents, which handles fine-grained PATs properly
   const apiUrl = `https://api.github.com/repos/${parsed.owner}/${parsed.repoName}/contents/${parsed.path}`;
 
   const headers: Record<string, string> = {
-    'Accept': 'application/vnd.github.v3.raw'
+    'Accept': 'application/vnd.github.v3.raw',
   };
   const token = getTokenForOwner(parsed.owner);
   if (token) {
@@ -209,13 +226,25 @@ async function fetchRawContent(
       timeout: 10_000,
       responseType: 'text',
       headers,
-      params: { ref: parsed.branch } // Ensure we get from the correct branch
+      params: { ref: parsed.branch }, // Ensure we get from the correct branch
     });
-    let content = typeof data === 'string' ? data : JSON.stringify(data);
-    if (content.length > MAX_SNIPPET_SIZE) {
-      content = content.slice(0, MAX_SNIPPET_SIZE) + '\n// ... truncated (50KB limit) ...';
+
+    // full_content holds the entire raw file — never truncated
+    const full_content = typeof data === 'string' ? data : JSON.stringify(data);
+
+    // snippet is capped at MAX_SNIPPET_SIZE to stay within LLM token budgets
+    const snippet =
+      full_content.length > MAX_SNIPPET_SIZE
+        ? full_content.slice(0, MAX_SNIPPET_SIZE) + '\n// ... truncated (50KB limit) ...'
+        : full_content;
+
+    if (full_content.length > MAX_SNIPPET_SIZE) {
+      logger.log(
+        `[fetchRawContent] ${parsed.path}: full size ${full_content.length} bytes — snippet capped at ${MAX_SNIPPET_SIZE} bytes for LLM; full_content preserved for verbatim copy.`,
+      );
     }
-    return content;
+
+    return { snippet, full_content };
   } catch (err) {
     logger.warn(`Failed to fetch raw content for ${apiUrl}: ` + (err as Error).message);
     return undefined;
@@ -244,3 +273,5 @@ function parseGithubUrl(url: string): {
     return { owner: '', repoName: '', branch: 'main', repo: '', path: '', url };
   }
 }
+
+

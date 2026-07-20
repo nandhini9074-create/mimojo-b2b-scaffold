@@ -41,7 +41,7 @@ export async function generateModuleCode(
   }
 
   state.code_files = state.template_groups[0]?.output.code_files;
-  
+
   const elapsed = Date.now() - totalStarted;
   logger.log(`generateModuleCode completed in ${elapsed}ms`);
 
@@ -61,101 +61,80 @@ async function runModuleCodeForGroup(
     throw new Error('Failed to download reference snippets from GitHub! Please check your GITHUB_TOKEN and ensure the repository/URL is accessible.');
   }
 
+  // Build reference snippets ONCE — reused by the module LLM prompt
+  const refSnippets = (state.github_refs ?? [])
+    .filter(r => r.snippet)
+    .map(r => `--- Reference: ${r.path} ---\n${r.snippet}`)
+    .join('\n\n');
+
   for (const file of files) {
     const fileStart = Date.now();
-    const lowerFile = file.toLowerCase();
-    // --- Step 1: Verbatim copy if this exact file exists in the reference snippets ---
-    const exactRef = (state.github_refs ?? []).find(
-      r => r.path && r.snippet && (r.path === file || r.path.endsWith('/' + file) || file.endsWith(r.path)),
-    );
-    if (exactRef?.snippet) {
-      codeFiles[file] = exactRef.snippet;
-      if (onFileGenerated) {
-        await onFileGenerated(file, exactRef.snippet);
-      }
-      logger.log(`Verbatim-copied ${file} from github_refs (exact match)`);
-      continue;
-    }
+    if (file.toLowerCase().endsWith('app.module.ts')) {
+      logger.log(`Generating single root module file ${file} via dedicated LLM prompt...`);
 
-    /*
-    // --- Step 2 (LEGACY): Non-core non-ts files get a stub comment ---
-    // Kept here for reference.
-    const isCore = lowerFile.endsWith('.ts') && (
-      lowerFile.includes('controller') || lowerFile.includes('service') || lowerFile.includes('module') ||
-      lowerFile.includes('model') || lowerFile.includes('entity') || lowerFile.includes('dto') ||
-      lowerFile.includes('guard') || lowerFile.includes('interceptor') || lowerFile.includes('decorator') ||
-      lowerFile.includes('helper') || lowerFile.includes('util') || lowerFile.includes('filter') ||
-      lowerFile.includes('common') || lowerFile.includes('config') || lowerFile.includes('enum') ||
-      lowerFile.includes('type') || lowerFile.includes('interface') || lowerFile.includes('main') ||
-      lowerFile.includes('app.')
-    );
+      const generatedFiles = files.filter(f => f !== file);
 
-    if (!isCore) {
-      const commentedContent = getCommentedContent(file);
-      codeFiles[file] = commentedContent;
-      if (onFileGenerated) {
-        await onFileGenerated(file, commentedContent);
-      }
-      logger.log(`Generated non-core file ${file} as commented template`);
-      continue;
-    }
-    */
-
-    logger.log(`Generating code for ${file}... please wait...`);
-    // Find the most relevant reference snippet for this file type
-    const refSnippets = (state.github_refs ?? [])
-      .filter(r => r.snippet)
-      .map(r => `--- Reference: ${r.path} ---\n${r.snippet}`)
-      .join('\n\n');
-
-    const prompt = `
-You are generating code for file: ${file}
+      const modulePrompt = `
+You are generating the single, root NestJS AppModule file: ${file}
 Project: ${state.projectName}
 
-PostgreSQL schema:
-${state.db_schema}
+FILES BEING GENERATED IN THIS RUN (use these as the basis for registering controllers, services, and models):
+${generatedFiles.join('\n')}
 
-Functions (extracted from the reference code):
+Functions list:
 ${JSON.stringify(state.functions_list, null, 2)}
 
-REFERENCE CODE (this is your TEMPLATE — you must replicate it):
+ORIGINAL REFERENCE APP.MODULE.TS CONTENT (preserve its structure, global imports, filters, and providers exactly):
 ${refSnippets}
 
-${state.repo_tree ? `Reference repository folder structure:\n${state.repo_tree}\n` : ''}
-
-ABSOLUTE RULES — VIOLATION IS UNACCEPTABLE:
-1. The reference code above is your TEMPLATE. You must replicate its structure for the corresponding file type, but you MUST ONLY implement the methods/endpoints/functions that are explicitly defined in the Functions list above. Do NOT generate any other methods, endpoints, or logic from the REFERENCE CODE templates that are NOT listed in the Functions list.
-2. If the reference controller has @Controller('card') with ONE method, your output must have the SAME decorator pattern with ONE method. Do NOT add extra routes.
-3. If the reference uses custom decorators like @ApiEndpoint, you MUST use the same decorator. Do NOT replace it with @ApiOperation or other alternatives.
-4. If the reference uses BaseResponse<any> as the return type, you MUST use BaseResponse<any>. Do NOT change it to a raw entity type.
-5. If the reference uses specific import paths like 'src/common/dtos/base-response', replicate those exact import paths.
-6. Copy the EXACT class names, method names, parameter names, and decorator configurations from the reference.
-7. Copy the EXACT fields, properties, columns, data types, and validations from the reference DTOs, Entities, and Interfaces. Do NOT add, remove, or alter any fields.
-8. The ONLY things you should change are domain-specific names (e.g., 'enrollment' -> your new module name) IF the project name implies a different domain. Keep all field properties identical.
-9. Do NOT add any methods, routes, fields, or imports that do not exist in the reference code.
-10. Copy the EXACT IMPLEMENTATION LOGIC inside methods. Do NOT summarize or invent new logic. You must replicate the exact loops, conditionals, object creations, and database interactions as they appear in the reference code. 
-11. If the reference code iterates over an array like 'cardDetails', you must do exactly the same. Do not simplify the code!
-12. Do NOT invent new models or variables *unless* they represent database tables specified in the PostgreSQL schema (like mc_enrollment_duplicates) but missing from reference snippets. If so, you MUST dynamically synthesize the Sequelize model class (e.g., McEnrollmentDuplicates) with matching properties.
-13. Select the correct template based on feature type:
-    - If the file is for a file-upload / batch feature, map its structure and logic to 'file-upload.controller.ts' / 'file-upload.service.ts'.
-    - If the file is for a standard API endpoint, map its structure and logic to 'enroll.controller.ts' / 'unenroll.controller.ts' / 'enroll.service.ts' / 'unenroll.service.ts'.
-14. The generated controllers and services MUST ONLY contain the functions/methods listed in the Functions list. Any routes, methods, or logic present in the reference templates that are not in the Functions list must be filtered out and omitted.
-
-${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
-${renderRefinements(state)}
+STRICT RULES — VIOLATION IS UNACCEPTABLE:
+1. Scan the "FILES BEING GENERATED IN THIS RUN" list:
+   - Identify all generated controllers (*.controller.ts) → import their classes → add to the "controllers" array in @Module.
+   - Identify all generated services (*.service.ts) → import their classes → add to the "providers" and "exports" arrays in @Module.
+   - Identify all generated Sequelize models (*.model.ts or inside /entities/) → import their classes → add to a "SequelizeModule.forFeature([...])" declaration inside the @Module "imports" array.
+2. PRESERVE all global configurations, modules, providers, and filters from the ORIGINAL REFERENCE APP.MODULE.TS:
+   - Keep ConfigModule.forRoot(...) with appConfig, databaseConfig, etc.
+   - Keep SequelizeModule.forRootAsync(...) and databaseBuilder config.
+   - Keep LoggerModule, CustomLoggerModule, and PinoLogger configuration details intact.
+   - Keep AppController, AppService, and exception filters / interceptors in the providers array.
+3. Import ONLY the classes/files that actually exist in the "FILES BEING GENERATED IN THIS RUN" list. Do NOT import any feature module file (like transaction.module.ts or enrollment.module.ts).
+4. The generated module class name MUST be AppModule:
+   export class AppModule {}
+5. Adjust relative import paths to match the directory structure of the generated files relative to src/app.module.ts.
 
 Return ONLY the file contents — no markdown fences, no commentary.
 `;
-    const res = await gpt41.invoke(prompt);
-    codeFiles[file] = res.content as string;
-    if (onFileGenerated) {
-      await onFileGenerated(file, res.content as string);
+
+      const res = await gpt41.invoke(modulePrompt);
+      codeFiles[file] = res.content as string;
+      if (onFileGenerated) {
+        await onFileGenerated(file, res.content as string);
+      }
+      logger.log(`Generated single root module file ${file} in ${Date.now() - fileStart}ms`);
+      continue;
     }
-    logger.log(`Generated ${file} in ${Date.now() - fileStart}ms`);
+
+    // Path B: All other files → Verbatim copy from full_content
+    const exactRef = (state.github_refs ?? []).find(
+      r => r.path && r.full_content &&
+        (r.path === file || r.path.endsWith('/' + file) || file.endsWith(r.path)),
+    );
+    if (exactRef?.full_content) {
+      codeFiles[file] = exactRef.full_content;
+      if (onFileGenerated) {
+        await onFileGenerated(file, exactRef.full_content);
+      }
+      logger.log(`Verbatim-copied ${file} from github_refs in ${Date.now() - fileStart}ms`);
+      continue;
+    }
+
+
+    logger.warn(`No github_ref match found for ${file} — file will be skipped. Check scaffold-templates.config.ts.`);
   }
 
   return codeFiles;
 }
+
 
 function getCommentedContent(filePath: string): string {
   const ext = filePath.split('.').pop()?.toLowerCase();
@@ -167,3 +146,5 @@ function getCommentedContent(filePath: string): string {
   }
   return `// This source/helper file (${filePath}) has been commented out to prioritize generating the core feature files (Controllers, Services, Modules, Entities, DTOs).`;
 }
+
+

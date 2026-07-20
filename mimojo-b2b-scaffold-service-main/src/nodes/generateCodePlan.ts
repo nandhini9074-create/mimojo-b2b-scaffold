@@ -32,54 +32,20 @@ export async function generateCodePlan(state: PipelineState): Promise<{ files: s
 }
 
 function runCodePlanForGroup(state: PipelineState, groupId: string, features: FeatureInput[]): { files: string[] } {
-  // We can easily identify feature-specific files because they were tagged with the groupId
-  // during the searchGithubRefs step, whereas infrastructure files were tagged with '_shared'.
-  const featureRefs = (state.github_refs ?? []).filter(r => r.feature === groupId && r.path);
-  
-  const files = featureRefs.map(r => r.path as string);
+  // Retrieve both the group's feature-specific files (excluding any feature modules) and infrastructure shared files
+  const featureRefs = (state.github_refs ?? []).filter(
+    r => r.feature === groupId && r.path && !r.path.toLowerCase().endsWith('.module.ts')
+  );
+  const sharedRefs = (state.github_refs ?? []).filter(r => r.feature === '_shared' && r.path);
 
-  // Ensure the primary module file is in the plan (standard NestJS structure)
-  const moduleFile = `src/${groupId}/${groupId}.module.ts`;
-  if (!files.includes(moduleFile)) {
-    files.push(moduleFile);
-  }
+  const files = [
+    ...sharedRefs.map(r => r.path as string),
+    ...featureRefs.map(r => r.path as string),
+  ];
 
   const uniqueFiles = [...new Set(files)];
 
   logger.log(`Group "${groupId}" code plan: ${uniqueFiles.join(', ')}`);
   return { files: uniqueFiles };
 
-  /*
-  // ─────────────────────────────────────────────────────────────────────────────
-  // LEGACY TEMPORARY MODE: Generated exactly 5 core files per group derived from
-  // the actual github_refs paths using hardcoded string matching.
-  // Kept here for reference.
-  // ─────────────────────────────────────────────────────────────────────────────
-  const allPaths = (state.github_refs ?? []).map(r => r.path).filter(Boolean) as string[];
-
-  const isInfrastructure = (p: string) =>
-    p.includes('app.module') || p.includes('app.controller') || p.includes('app.service') ||
-    p.includes('src/main.ts') || p.includes('tracer') || p.includes('logger') ||
-    p.includes('guards/') || p.includes('generic-http') || p.includes('http.module') ||
-    p.includes('kafka') || p.includes('src/common/') || p.includes('config/server') ||
-    p.includes('env.validation') || p.includes('decorators/') || p.includes('card-status.enum');
-
-  const featurePaths = allPaths.filter(p => !isInfrastructure(p));
-  const featureTypes = new Set((features ?? []).map(f => f.type || 'api'));
-
-  let controller: string | undefined;
-  if (featureTypes.has('file')) {
-    controller = featurePaths.find(p => p.includes('controller') && (p.includes('file-upload') || p.includes('v2') || p.includes('receipt')));
-  }
-  if (!controller) controller = featurePaths.find(p => p.includes('controller'));
-
-  const service = featurePaths.find(p => p.includes('service') && !p.includes('file-upload')) ?? featurePaths.find(p => p.includes('service'));
-  const model = featurePaths.find(p => (p.includes('.model.ts') || p.includes('/entities/')) && p.endsWith('.ts'));
-  const moduleFile = featurePaths.find(p => p.includes('.module.ts') && !p.includes('app.module') && !p.includes('http.module')) ?? \`src/\${groupId}/\${groupId}.module.ts\`;
-  const dto = featurePaths.find(p => (p.includes('/dto/') || p.endsWith('.dto.ts')) && p.endsWith('.ts'));
-
-  const legacyFiles = [controller, service, model, moduleFile, dto].filter((f): f is string => !!f);
-  const uniqueLegacyFiles = [...new Set(legacyFiles)];
-  return { files: uniqueLegacyFiles };
-  */
 }

@@ -20,58 +20,31 @@ export async function githubPush(state: PipelineState): Promise<{ repo_url: stri
     const token = group.id === 'transaction'
       ? (process.env.GITHUB_TOKEN_TRANSACTION || process.env.GITHUB_TOKEN)
       : (process.env.GITHUB_TOKEN_ENROLLMENT || process.env.GITHUB_TOKEN);
-    let owner = group.id === 'transaction'
-      ? (process.env.GITHUB_OWNER_TRANSACTION || 'nandhini9074-create')
-      : (process.env.GITHUB_OWNER_ENROLLMENT || process.env.GITHUB_OWNER || 'nandhini9074-create');
 
     const octokit = new Octokit({ auth: token });
 
-    // Create repo (idempotent — ignore "already exists")
-    let htmlUrl: string = '';
+    let htmlUrl = '';
+    let owner = '';
 
     try {
-      let userLogin = '';
-      try {
-        const user = await octokit.users.getAuthenticated();
-        userLogin = user.data.login;
-      } catch (_) { }
+      // Get the authenticated username once
+      const user = await octokit.users.getAuthenticated();
+      owner = user.data.login;
 
-      if (userLogin && userLogin.toLowerCase() !== owner.toLowerCase()) {
-        try {
-          const repo = await octokit.repos.createInOrg({
-            org: owner,
-            name: repoName,
-            auto_init: true,
-            private: true,
-          });
-          htmlUrl = repo.data.html_url;
-        } catch (orgErr: any) {
-          if (orgErr.status === 422) {
-            const repo = await octokit.repos.get({ owner, repo: repoName });
-            htmlUrl = repo.data.html_url;
-          } else {
-            logger.warn(`Failed to create repo in org ${owner}, falling back to personal account ${userLogin}`);
-            const repo = await octokit.repos.createForAuthenticatedUser({
-              name: repoName,
-              auto_init: true,
-              private: true,
-            });
-            htmlUrl = repo.data.html_url;
-            owner = userLogin; // <--- The crucial fix! 
-          }
-        }
-      } else {
-        const repo = await octokit.repos.createForAuthenticatedUser({
-          name: repoName,
-          auto_init: true,
-          private: true,
-        });
-        htmlUrl = repo.data.html_url;
-      }
-    } catch (err: any) {
-      if (err.status !== 422) throw err;
-      const repo = await octokit.repos.get({ owner, repo: repoName });
+      const repo = await octokit.repos.createForAuthenticatedUser({
+        name: repoName,
+        auto_init: true,
+        private: true,
+      });
       htmlUrl = repo.data.html_url;
+    } catch (err: any) {
+      if (err.status === 422) {
+        // If the repository already exists, fetch it directly
+        const repo = await octokit.repos.get({ owner, repo: repoName });
+        htmlUrl = repo.data.html_url;
+      } else {
+        throw err;
+      }
     }
 
     const allFiles: Record<string, string> = {
@@ -82,23 +55,63 @@ export async function githubPush(state: PipelineState): Promise<{ repo_url: stri
       "db/schema.sql": group.output.db_schema ?? "",
     };
 
-    for (const [path, content] of Object.entries(allFiles)) {
-      if (!content) continue;
-      // Get existing sha if file exists (required for update)
-      let sha: string | undefined;
-      try {
-        const existing = await octokit.repos.getContent({ owner, repo: repoName, path });
-        if (!Array.isArray(existing.data) && "sha" in existing.data) sha = existing.data.sha;
-      } catch (_) { /* file doesn't exist yet */ }
+    try {
+      // 1. Retrieve the repository's default branch (usually 'main')
+      const repoInfo = await octokit.repos.get({ owner, repo: repoName });
+      const defaultBranch = repoInfo.data.default_branch || 'main';
 
-      await octokit.repos.createOrUpdateFileContents({
+      // 2. Get the latest commit SHA on the default branch
+      const ref = await octokit.git.getRef({ owner, repo: repoName, ref: `heads/${defaultBranch}` });
+      const latestCommitSha = ref.data.object.sha;
+
+      // 3. Get the tree SHA associated with the latest commit
+      const commit = await octokit.git.getCommit({ owner, repo: repoName, commit_sha: latestCommitSha });
+      const baseTreeSha = commit.data.tree.sha;
+
+      // 4. Map files to tree items
+      const treeItems = Object.entries(allFiles)
+        .filter(([_, content]) => !!content)
+        .map(([path, content]) => ({
+          path,
+          mode: '100644' as const, // standard file mode
+          type: 'blob' as const,
+          content, // sends raw text content directly
+        }));
+
+      // 5. Create a new git tree based on the previous tree
+      const newTree = await octokit.git.createTree({
         owner,
         repo: repoName,
-        path,
-        message: `chore: add ${path}`,
-        content: Buffer.from(content).toString("base64"),
-        sha,
+        base_tree: baseTreeSha,
+        tree: treeItems,
       });
+
+      const commitMessage = state.refinements?.length
+        ? `chore: apply feedback - ${state.refinements[state.refinements.length - 1].feedback}`
+        : 'chore: scaffold codebase';
+
+      // 6. Create the single commit pointing to the new tree
+      const newCommit = await octokit.git.createCommit({
+        owner,
+        repo: repoName,
+        message: commitMessage,
+        tree: newTree.data.sha,
+        parents: [latestCommitSha],
+      });
+
+      // 7. Point the branch head reference to the new commit
+      await octokit.git.updateRef({
+        owner,
+        repo: repoName,
+        ref: `heads/${defaultBranch}`,
+        sha: newCommit.data.sha,
+        force: true,
+      });
+
+      logger.log(`Successfully committed all files in a single commit to ${repoName}`);
+    } catch (err: any) {
+      logger.error(`Failed to execute multi-file commit on GitHub: ${err.message}`, err.stack);
+      throw err;
     }
 
     logger.log(`githubPush for group "${group.id}" completed in ${Date.now() - started}ms. URL: ${htmlUrl}`);

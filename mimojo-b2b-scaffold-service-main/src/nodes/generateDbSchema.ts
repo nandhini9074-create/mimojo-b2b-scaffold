@@ -24,7 +24,7 @@ export async function generateDbSchema(state: PipelineState, feedback?: string) 
   }
 
   state.db_schema = state.template_groups[0]?.output.db_schema;
-  
+
   const elapsed = Date.now() - totalStarted;
   logger.log(`generateDbSchema completed in ${elapsed}ms`);
 

@@ -37,7 +37,7 @@ ${code}
   }
 
   state.code_files = state.template_groups[0]?.output.code_files;
-  
+
   const elapsed = Date.now() - started;
   logger.log(`fix completed in ${elapsed}ms`);
 
