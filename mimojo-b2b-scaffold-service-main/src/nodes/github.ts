@@ -55,6 +55,33 @@ export async function githubPush(state: PipelineState): Promise<{ repo_url: stri
       "db/schema.sql": group.output.db_schema ?? "",
     };
 
+    // --- Dynamic Template Hotfixes ---
+    if (allFiles['nest-cli.json']) {
+      try {
+        const nestCli = JSON.parse(allFiles['nest-cli.json']);
+        nestCli.compilerOptions = nestCli.compilerOptions || {};
+        nestCli.compilerOptions.plugins = ["@nestjs/swagger/plugin"];
+        allFiles['nest-cli.json'] = JSON.stringify(nestCli, null, 2);
+      } catch (e) {
+        logger.warn('Failed to inject swagger plugin into nest-cli.json');
+      }
+    }
+
+    if (allFiles['src/common/helpers/database.ts']) {
+      allFiles['src/common/helpers/database.ts'] = allFiles['src/common/helpers/database.ts'].replace(
+        'ssl: DB_SSL ?? { require: false }',
+        "ssl: DB_SSL === true || String(DB_SSL) === 'true' ? { require: true, rejectUnauthorized: false } : false"
+      );
+    }
+
+    if (allFiles['env.validation.ts']) {
+      allFiles['env.validation.ts'] = allFiles['env.validation.ts']
+        .replace(/@IsUrl\(\)\s*GRAVITEE_ENDPOINT/, '// @IsUrl()\n  GRAVITEE_ENDPOINT')
+        .replace(/@IsNotEmpty\(\)\s*@IsString\(\)\s*CONSUMER_IDENTITY_SERVICE_URL/, '// @IsNotEmpty()\n  @IsString()\n  CONSUMER_IDENTITY_SERVICE_URL')
+        .replace(/@IsBoolean\(\)\s*DB_SSL/, "@Transform(({ obj }) => { const { DB_SSL } = obj; return DB_SSL === true || DB_SSL === 'true'; })\n  @IsBoolean()\n  DB_SSL");
+    }
+    // ---------------------------------
+
     try {
       // 1. Retrieve the repository's default branch (usually 'main')
       const repoInfo = await octokit.repos.get({ owner, repo: repoName });
