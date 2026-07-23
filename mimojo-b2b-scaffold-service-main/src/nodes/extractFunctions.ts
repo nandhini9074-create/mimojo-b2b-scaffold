@@ -41,6 +41,12 @@ async function runExtractForGroup(state: PipelineState, groupId: string, feature
     throw new Error('Failed to download reference snippets from GitHub! Please check your GITHUB_TOKEN and ensure the repository/URL is accessible.');
   }
 
+  // Filter refs to only keep controllers and services with valid snippets to prevent prompt overload
+  const relevantRefs = (state.github_refs ?? []).filter(r => {
+    const p = (r.path || '').toLowerCase();
+    return !!r.snippet && (p.includes('controller') || p.includes('service'));
+  });
+
   const prompt = `
 You are a senior backend architect.
 Project: ${state.projectName}
@@ -52,8 +58,9 @@ RULES:
 1. Extract ONLY functions/methods/endpoints explicitly defined in the reference code snippets below.
 2. DO NOT invent, add, or guess any functions that are not present in the code.
 3. For each function, extract the EXACT name, EXACT parameters (inputs), and EXACT return type (outputs) as written in the code.
-4. Map each extracted function to the most relevant feature name from the Feature List below.
-5. The "type" field of each function MUST match the type of the feature it is mapped to (either "api" or "file").
+4. For each function, extract the exact HTTP method (GET, POST, PUT, DELETE, PATCH) and exact route path string defined in the controller decorator (e.g. @Delete('/receipt/:id') has httpMethod 'DELETE' and routePath '/receipt/:id').
+5. Map each extracted function to the most relevant feature name from the Feature List below.
+6. The "type" field of each function MUST match the type of the feature it is mapped to (either "api" or "file").
 6. TRANSACTION CONTROLLER SCOPING RULES — look at the code snippets provided and apply these rules based on what is present:
    - If the snippet is from a transaction controller AND the feature type is "api":
        * Extract ONLY endpoints that are pure data query/read routes (GET requests that fetch transaction lists, summaries, details, dashboards).
@@ -65,7 +72,7 @@ RULES:
 
 
 Reference code snippets:
-${(state.github_refs ?? []).map(r => `--- ${r.path} ---\n${r.snippet || '(not available)'}`).join('\n\n')}
+${relevantRefs.map(r => `--- ${r.path} ---\n${r.snippet}`).join('\n\n')}
 
 Return ONLY JSON of the form:
 {
@@ -76,6 +83,8 @@ Return ONLY JSON of the form:
         { 
           "name": "<exact method name>", 
           "type": "<type of feature: api or file>",
+          "httpMethod": "<GET | POST | PUT | DELETE | PATCH>",
+          "routePath": "<exact path decorator string, e.g. /receipt/:id>",
           "description": "<what it does>", 
           "inputs": ["<exact param: type with exact properties/fields>"], 
           "outputs": ["<exact return type with exact properties/fields>"], 
@@ -87,7 +96,7 @@ Return ONLY JSON of the form:
 }
 
 Feature List:
-${features.map((f, i) => `${i + 1}. ${groupId} (Type: ${f.type || 'api'})`).join("\n")}
+${features.map((f, i) => `${i + 1}. ${f.name || groupId} (Type: ${f.type || 'api'}${f.scheme ? `, Scheme: ${f.scheme}` : ''})`).join("\n")}
 
 ${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
 ${renderRefinements(state)}

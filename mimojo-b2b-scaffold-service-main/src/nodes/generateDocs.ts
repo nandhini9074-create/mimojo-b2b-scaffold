@@ -70,11 +70,17 @@ export async function generateDocs(state: PipelineState, feedback?: string) {
 }
 
 async function runDocsForGroup(state: PipelineState, feedback?: string) {
-  // Filter refs to only keep controllers and DTOs/models/entities/enums to prevent prompt overload and output truncation
-  const filteredRefs = (state.github_refs ?? []).filter(r => {
-    const p = (r.path || '').toLowerCase();
-    return p.includes('controller') || p.includes('dto') || p.includes('model') || p.includes('entity') || p.includes('enum') || p.includes('main.ts');
-  });
+  // Filter refs and strip full_content to prevent prompt overload and output truncation
+  const filteredRefs = (state.github_refs ?? [])
+    .filter(r => {
+      const p = (r.path || '').toLowerCase();
+      return !!r.snippet && (p.includes('controller') || p.includes('dto') || p.includes('model') || p.includes('entity') || p.includes('enum') || p.includes('main.ts'));
+    })
+    .map(r => ({
+      feature: r.feature,
+      path: r.path,
+      snippet: r.snippet,
+    }));
 
   logger.log(`Filtered reference files for doc generation: ${JSON.stringify(filteredRefs.map(r => r.path))}`);
 
@@ -85,12 +91,11 @@ For project "${state.projectName}", generate two documentation files:
 
 CRITICAL INSTRUCTIONS:
 - You MUST generate fully-defined endpoint paths, parameters, requestBodies, schemas, and responses for EVERY SINGLE function in the functions list below.
-- Do NOT skip, omit, or summarize any endpoints.
-- Do NOT use placeholders, comments, or ellipses (e.g., "...") for any paths or schemas. The spec must be complete, valid YAML, and production-ready.
-- Path Parameters Format: In OpenAPI paths, path parameters MUST be enclosed in curly braces (e.g., /transactions/{transactionId}/appeal), NOT colons (do NOT use :transactionId).
-- Path Parameters Definition: For every path parameter used in a path (like {transactionId}), you MUST explicitly define a corresponding parameter object in the 'parameters' list for that operation with 'in: path' and 'required: true' and a valid schema.
+- Path/Verb Determinism: For each endpoint in the OpenAPI spec, you MUST use the exact \`httpMethod\` and \`routePath\` provided in the Functions list. Do NOT invent new paths, combine paths, or rename them.
+- Path Parameters Format: Convert Express/NestJS colon-based path parameters in \`routePath\` (like \`:id\` or \`:transactionId\`) to OpenAPI curly-brace format (like \`{id}\` or \`{transactionId}\`).
+- Path Parameters Definition: For every path parameter used in a path, you MUST explicitly define a corresponding parameter object in the 'parameters' list for that operation with 'in: path' and 'required: true' and a valid schema.
 - Request Bodies: For POST, PUT, and PATCH request payloads, use the "requestBody" field. Do NOT use "in: body" inside the "parameters" array (which is invalid in OpenAPI 3.x).
-- Endpoint Count Integrity: The final generated OpenAPI spec MUST contain exactly the same number of endpoints and paths as there are functions in the Functions list. Verify that you have mapped every single function to a corresponding API path before finishing.
+- Endpoint Count Integrity: The final generated OpenAPI spec MUST contain exactly the same number of endpoints and paths as there are functions in the Functions list. Do NOT omit any endpoints or generate placeholders/ellipses (e.g., "...").
 
 Format the output strictly as follows:
 ===OPENAPI_START===

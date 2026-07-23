@@ -67,6 +67,33 @@ async function runModuleCodeForGroup(
     .map(r => `--- Reference: ${r.path} ---\n${r.snippet}`)
     .join('\n\n');
 
+  // Programmatically extract all generated service and proxy classes
+  const scannedItems: { className: string; importPath: string }[] = [];
+  for (const f of files) {
+    if (f.toLowerCase().endsWith('app.module.ts')) continue;
+    if (f.toLowerCase().endsWith('.ts')) {
+      const ref = (state.github_refs ?? []).find(
+        r => r.path === f || r.path?.endsWith('/' + f) || f.endsWith(r.path ?? '')
+      );
+      const content = ref?.full_content;
+      if (content && /@Injectable\s*\(?\)?/i.test(content)) {
+        const classMatch = content.match(/export\s+class\s+(\w+)/);
+        if (classMatch) {
+          const className = classMatch[1];
+          let importPath = f;
+          if (importPath.startsWith('src/')) {
+            importPath = './' + importPath.slice(4);
+          }
+          if (importPath.endsWith('.ts')) {
+            importPath = importPath.slice(0, -3);
+          }
+          importPath = importPath.replace(/\\/g, '/');
+          scannedItems.push({ className, importPath });
+        }
+      }
+    }
+  }
+
   for (const file of files) {
     const fileStart = Date.now();
     if (file.toLowerCase().endsWith('app.module.ts')) {
@@ -81,6 +108,10 @@ Project: ${state.projectName}
 FILES BEING GENERATED IN THIS RUN (use these as the basis for registering controllers, services, and models):
 ${generatedFiles.join('\n')}
 
+REQUIRED SERVICES AND PROXIES TO REGISTER:
+You MUST import and register all these classes in the "providers" and "exports" arrays:
+${scannedItems.map(item => `- Class: ${item.className} (Import from: '${item.importPath}')`).join('\n')}
+
 Functions list:
 ${JSON.stringify(state.functions_list, null, 2)}
 
@@ -90,7 +121,7 @@ ${refSnippets}
 STRICT RULES — VIOLATION IS UNACCEPTABLE:
 1. Scan the "FILES BEING GENERATED IN THIS RUN" list:
    - Identify all generated controllers (*.controller.ts) → import their classes → add to the "controllers" array in @Module.
-   - Identify all generated services (*.service.ts) → import their classes → add to the "providers" and "exports" arrays in @Module.
+   - For all classes listed under "REQUIRED SERVICES AND PROXIES TO REGISTER", import them from their specified paths and register them in both the "providers" and "exports" arrays in @Module.
    - Identify all generated Sequelize models (*.model.ts or inside /entities/) → import their classes → add to a "SequelizeModule.forFeature([...])" declaration inside the @Module "imports" array.
 2. PRESERVE all global configurations, modules, providers, and filters from the ORIGINAL REFERENCE APP.MODULE.TS:
    - Keep ConfigModule.forRoot(...) with appConfig, databaseConfig, etc.
@@ -102,10 +133,16 @@ STRICT RULES — VIOLATION IS UNACCEPTABLE:
    export class AppModule {}
 5. Adjust relative import paths to match the directory structure of the generated files relative to src/app.module.ts.
 
+${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
+${renderRefinements(state)}
+
 Return ONLY the file contents — no markdown fences, no commentary.
 `;
 
+      logger.log(`FILES BEING GENERATED IN THIS RUN:\n${generatedFiles.join('\n')}`);
+
       const res = await gpt41.invoke(modulePrompt);
+      logger.log(`LLM GENERATED APP.MODULE.TS RESPONSE:\n${res.content}`);
       codeFiles[file] = res.content as string;
       if (onFileGenerated) {
         await onFileGenerated(file, res.content as string);

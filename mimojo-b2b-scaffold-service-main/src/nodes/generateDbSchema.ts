@@ -38,6 +38,18 @@ async function runDbSchemaForGroup(state: PipelineState, feedback?: string) {
     throw new Error('Failed to download reference snippets from GitHub! Please check your GITHUB_TOKEN and ensure the repository/URL is accessible.');
   }
 
+  // Filter refs to only keep DTOs/models/entities/enums and strip full_content to prevent prompt overload
+  const filteredRefs = (state.github_refs ?? [])
+    .filter(r => {
+      const p = (r.path || '').toLowerCase();
+      return !!r.snippet && (p.includes('dto') || p.includes('model') || p.includes('entity') || p.includes('enum'));
+    })
+    .map(r => ({
+      feature: r.feature,
+      path: r.path,
+      snippet: r.snippet,
+    }));
+
   const prompt = `
 Generate a complete PostgreSQL DDL schema (CREATE TABLE / INDEX / FK statements only) for project "${state.projectName}".
 
@@ -45,7 +57,7 @@ Functions:
 ${JSON.stringify(state.functions_list, null, 2)}
 
 GitHub references to mirror structure from:
-${JSON.stringify(state.github_refs ?? [], null, 2)}
+${JSON.stringify(filteredRefs, null, 2)}
 
 CRITICAL INSTRUCTION:
 1. You MUST extract and use ONLY the exact table names, column names, constraints, and data types found in the provided GitHub references (Sequelize models or DTOs).

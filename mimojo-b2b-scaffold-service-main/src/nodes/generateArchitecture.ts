@@ -37,6 +37,15 @@ async function runArchitectureForGroup(state: PipelineState, groupId: string, fe
   const flowName = isTx ? 'Transaction / Core Processing' : 'Enrollment / Onboarding';
   const flowListPrompt = `  1. ### ${flowName}`;
 
+  // Filter out files without snippets and strip full_content to prevent prompt overload
+  const filteredRefs = (state.github_refs ?? [])
+    .filter(r => !!r.snippet)
+    .map(r => ({
+      feature: r.feature,
+      path: r.path,
+      snippet: r.snippet,
+    }));
+
   const prompt = `
 You are a senior B2B integration architect. Generate THREE architecture artefacts as Mermaid
 diagrams for project "${state.projectName}". Output STRICT Markdown — exactly three top-level
@@ -224,7 +233,7 @@ Functions (derive services, flows and data classes from this):
 ${JSON.stringify(state.functions_list, null, 2)}
 
 Existing GitHub references (reuse component names / patterns where they fit):
-${JSON.stringify(state.github_refs ?? [], null, 2)}
+${JSON.stringify(filteredRefs, null, 2)}
 
 CRITICAL INSTRUCTION: You MUST strictly mirror the exact structural components, service layers, and data models found in the GitHub references.
 

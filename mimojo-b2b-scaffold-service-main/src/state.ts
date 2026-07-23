@@ -17,7 +17,9 @@ export interface GithubRef {
 }
 
 export interface FeatureInput {
+  name?: string;
   type?: 'api' | 'file';
+  scheme?: 'VISA' | 'MC' | 'MC and VISA';
   refs?: string[];
 }
 

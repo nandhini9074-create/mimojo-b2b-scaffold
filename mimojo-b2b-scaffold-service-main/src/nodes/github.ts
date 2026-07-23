@@ -79,6 +79,41 @@ export async function githubPush(state: PipelineState): Promise<{ repo_url: stri
           content, // sends raw text content directly
         }));
 
+      // Fetch the recursive tree of the target repository to check for existing files
+      let existingFiles: string[] = [];
+      try {
+        const targetTree = await octokit.git.getTree({
+          owner,
+          repo: repoName,
+          tree_sha: baseTreeSha,
+          recursive: 'true',
+        });
+        if (targetTree.data?.tree) {
+          existingFiles = targetTree.data.tree
+            .filter((item: any) => item.type === 'blob')
+            .map((item: any) => item.path as string);
+        }
+      } catch (err) {
+        logger.warn(`Failed to fetch target repo tree for ${owner}/${repoName}: ` + (err as Error).message);
+      }
+
+      // Find leftover module files in the remote target repo and delete them in the new tree
+      for (const filePath of existingFiles) {
+        const trimmedPath = filePath.trim();
+        if (
+          trimmedPath.toLowerCase().endsWith('.module.ts') &&
+          !trimmedPath.toLowerCase().endsWith('app.module.ts') &&
+          !allFiles[trimmedPath]
+        ) {
+          treeItems.push({
+            path: trimmedPath,
+            mode: '100644' as const,
+            type: 'blob' as const,
+            sha: null, // this deletes the file when base_tree is used
+          } as any);
+        }
+      }
+
       // 5. Create a new git tree based on the previous tree
       const newTree = await octokit.git.createTree({
         owner,

@@ -3,6 +3,11 @@ import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class FeatureDto {
+  @ApiProperty({ example: 'transaction-dashboard', required: false })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
   @ApiProperty({ example: 'api', enum: ['api', 'file'], required: false })
   @IsOptional()
   @IsEnum(['api', 'file'])

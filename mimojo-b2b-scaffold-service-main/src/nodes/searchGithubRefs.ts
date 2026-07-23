@@ -61,12 +61,13 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
       const parsed = parseGithubUrl(url);
       const result = await fetchRawContent(parsed);
       if (result !== undefined) {
+        const isEssential = isEssentialForLLM(filePath);
         groupRefs.push({
           feature: featureName,
           repo: parsed.repo,
           path: parsed.path,
           url: parsed.url,
-          snippet: result.snippet,           // ≤50 KB — safe for LLM context
+          snippet: isEssential ? result.snippet : undefined,           // only populate for LLM context if essential
           full_content: result.full_content, // complete raw file — used for verbatim copy
         });
       }
@@ -90,21 +91,23 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
       // Filter controllers based on feature type (API vs File Upload) and card scheme for Transaction group
       templatePaths = templatePaths.filter(p => {
         // ── Transaction Group ──────────────────────────────────────────────
-        if (p.endsWith('transaction.controller.ts') || p.endsWith('transaction-v2.controller.ts')) {
-          if (featureType === 'file') {
-            // Only the V2 controller has file/receipt upload & appeal endpoints
-            return p.endsWith('transaction-v2.controller.ts');
-          }
-          // VISA Only (or no scheme)  → V1 (transaction.controller.ts)
-          // MC Only | MC and VISA     → V2 (transaction-v2.controller.ts)
-          const scheme = (feature as any).scheme as string | undefined;
-          const isMcScheme = scheme === 'MC' || scheme === 'MC and VISA';
-          if (p.endsWith('transaction.controller.ts')) {
-            return !isMcScheme; // keep V1 only for VISA / no-scheme
-          }
-          if (p.endsWith('transaction-v2.controller.ts')) {
-            return isMcScheme; // keep V2 only for MC / MC and VISA
-          }
+        const scheme = (feature as any).scheme as string | undefined;
+        const isMcScheme = scheme === 'MC' || scheme === 'MC and VISA';
+        const isV2 = featureType === 'file' || isMcScheme;
+
+        // V1 files (exclude if V2 project)
+        if (p.endsWith('controllers/transaction.controller.ts') || p.endsWith('transaction/transaction.module.ts')) {
+          return !isV2;
+        }
+
+        // V2 files (exclude if V1 project)
+        if (
+          p.endsWith('v2/transaction.controller.ts') ||
+          p.endsWith('controllers/transaction-v2.controller.ts') ||
+          p.endsWith('transaction/v2/transaction.module.ts') ||
+          p.endsWith('services/appeal.service.ts')
+        ) {
+          return isV2;
         }
 
         // ── Enrollment Group ───────────────────────────────────────────────
@@ -272,6 +275,21 @@ function parseGithubUrl(url: string): {
   } catch {
     return { owner: '', repoName: '', branch: 'main', repo: '', path: '', url };
   }
+}
+
+function isEssentialForLLM(filePath: string): boolean {
+  const lower = filePath.toLowerCase();
+  if (!lower.endsWith('.ts')) return false;
+
+  return (
+    lower.endsWith('controller.ts') ||
+    lower.endsWith('service.ts') ||
+    lower.endsWith('dto.ts') ||
+    lower.endsWith('model.ts') ||
+    lower.endsWith('entity.ts') ||
+    lower.endsWith('enum.ts') ||
+    lower.endsWith('app.module.ts')
+  );
 }
 
 
