@@ -19,8 +19,11 @@ export async function generateCodePlan(state: PipelineState): Promise<{ files: s
       functions_list: group.output.functions_list,
       repo_tree: group.output.repo_tree,
     };
-    group.output.code_plan = runCodePlanForGroup(groupState, group.id, group.features); // TEMP: sync call — no await in 5-file mode
-    logger.log(`Code plan for group "${group.id}" generated with ${group.output.code_plan?.files?.length || 0} files in ${Date.now() - groupStarted}ms`);
+    const planResult = runCodePlanForGroup(groupState, group.id, group.features);
+    group.output.infrastructure_files = planResult.infrastructure_files;
+    group.output.feature_file_paths = planResult.feature_file_paths;
+    group.output.code_plan = { files: planResult.files };
+    logger.log(`Code plan for group "${group.id}" generated with ${group.output.code_plan.files.length} files in ${Date.now() - groupStarted}ms`);
   }
 
   state.code_plan = state.template_groups[0]?.output.code_plan;
@@ -31,21 +34,26 @@ export async function generateCodePlan(state: PipelineState): Promise<{ files: s
   return state.code_plan || { files: [] };
 }
 
-function runCodePlanForGroup(state: PipelineState, groupId: string, features: FeatureInput[]): { files: string[] } {
-  // Retrieve both the group's feature-specific files (excluding any feature modules) and infrastructure shared files
+function runCodePlanForGroup(state: PipelineState, groupId: string, features: FeatureInput[]): { files: string[], infrastructure_files: string[], feature_file_paths: string[] } {
+  // Retrieve both the group's feature-specific files (excluding any feature modules) and infrastructure files
   const featureRefs = (state.github_refs ?? []).filter(
-    r => r.feature === groupId && r.path && !r.path.toLowerCase().endsWith('.module.ts')
+    r => r.role === 'feature' && r.path && !r.path.toLowerCase().endsWith('.module.ts')
   );
-  const sharedRefs = (state.github_refs ?? []).filter(r => r.feature === '_shared' && r.path);
+  const infrastructureRefs = (state.github_refs ?? []).filter(
+    r => r.role === 'infrastructure' && r.path
+  );
+
+  const infrastructure_files = [...new Set(infrastructureRefs.map(r => r.path as string))];
+  const feature_file_paths = [...new Set(featureRefs.map(r => r.path as string))];
 
   const files = [
-    ...sharedRefs.map(r => r.path as string),
-    ...featureRefs.map(r => r.path as string),
+    ...infrastructure_files,
+    ...feature_file_paths,
+    'src/app.module.ts', // Always included as it is LLM-generated
   ];
 
   const uniqueFiles = [...new Set(files)];
 
   logger.log(`Group "${groupId}" code plan: ${uniqueFiles.join(', ')}`);
-  return { files: uniqueFiles };
-
+  return { files: uniqueFiles, infrastructure_files, feature_file_paths };
 }

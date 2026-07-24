@@ -9,6 +9,7 @@ export type ScaffoldStage =
 
 export interface GithubRef {
   feature: string;
+  role: 'infrastructure' | 'feature';
   repo: string;
   path: string;
   url: string;
@@ -31,6 +32,8 @@ export interface TemplateGroupOutput {
   api_docs?: string;
   project_docs?: string;
   db_schema?: string;
+  infrastructure_files?: string[];
+  feature_file_paths?: string[];
   code_plan?: { files: string[] };
   code_files?: Record<string, string>;
   validation?: { passed: boolean; errors?: string[] };

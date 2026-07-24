@@ -53,7 +53,7 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
 
     const fetchedPaths = new Set<string>();
 
-    async function fetchGroupFile(filePath: string, featureName: string) {
+    async function fetchGroupFile(filePath: string, featureName: string, role: 'infrastructure' | 'feature') {
       if (fetchedPaths.has(filePath)) return;
       fetchedPaths.add(filePath);
 
@@ -61,21 +61,22 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
       const parsed = parseGithubUrl(url);
       const result = await fetchRawContent(parsed);
       if (result !== undefined) {
-        const isEssential = isEssentialForLLM(filePath);
         groupRefs.push({
           feature: featureName,
+          role,
           repo: parsed.repo,
           path: parsed.path,
           url: parsed.url,
-          snippet: isEssential ? result.snippet : undefined,           // only populate for LLM context if essential
-          full_content: result.full_content, // complete raw file — used for verbatim copy
+          // All files (both infrastructure and feature) are verbatim-copied, so we need full_content for all of them.
+          snippet: result.snippet,
+          full_content: result.full_content,
         });
       }
     }
 
-    // Fetch group-specific shared files
-    for (const fp of config.templates.shared) {
-      await fetchGroupFile(fp, '_shared');
+    // Fetch group-specific infrastructure files
+    for (const fp of config.templates.infrastructure) {
+      await fetchGroupFile(fp, '_shared', 'infrastructure');
     }
 
     // Fetch per-feature files
@@ -122,7 +123,7 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
         const schemeTag = (feature as any).scheme ? ` [scheme: ${(feature as any).scheme}]` : '';
         logger.log(`Auto-resolving ${templatePaths.length} refs for group ${group.id} feature "${group.id}"${schemeTag} → [${templatePaths.map(p => p.split('/').pop()).join(', ')}]`);
         for (const fp of templatePaths) {
-          await fetchGroupFile(fp, group.id);
+          await fetchGroupFile(fp, group.id, 'feature');
         }
         continue;
       }

@@ -80,6 +80,10 @@ async function runModuleCodeForGroup(
         const classMatch = content.match(/export\s+class\s+(\w+)/);
         if (classMatch) {
           const className = classMatch[1];
+          // Skip classes that are already part of the base app.module.ts template to avoid duplicate imports/providers
+          if (['AppService', 'PinoLoggerInterceptor', 'AllExceptionsFilter'].includes(className)) {
+            continue;
+          }
           let importPath = f;
           if (importPath.startsWith('src/')) {
             importPath = './' + importPath.slice(4);
@@ -90,6 +94,28 @@ async function runModuleCodeForGroup(
           importPath = importPath.replace(/\\/g, '/');
           scannedItems.push({ className, importPath });
         }
+      }
+    }
+  }
+
+  // Extract infrastructure modules to provide explicitly to the app.module.ts LLM prompt
+  const infraModules: { className: string; importPath: string }[] = [];
+  const infraModuleRefs = (state.github_refs ?? []).filter(
+    r => r.role === 'infrastructure' && r.path && r.path.toLowerCase().endsWith('.module.ts') && !r.path.toLowerCase().endsWith('app.module.ts')
+  );
+  
+  for (const ref of infraModuleRefs) {
+    if (ref.full_content) {
+      const classMatch = ref.full_content.match(/export\s+class\s+(\w+Module)/);
+      if (classMatch) {
+        const className = classMatch[1];
+        let importPath = ref.path;
+        if (importPath.startsWith('src/')) {
+          importPath = './' + importPath.slice(4);
+        }
+        importPath = importPath.slice(0, -3); // remove .ts
+        importPath = importPath.replace(/\\/g, '/');
+        infraModules.push({ className, importPath });
       }
     }
   }
@@ -112,6 +138,10 @@ REQUIRED SERVICES AND PROXIES TO REGISTER:
 You MUST import and register all these classes in the "providers" and "exports" arrays:
 ${scannedItems.map(item => `- Class: ${item.className} (Import from: '${item.importPath}')`).join('\n')}
 
+INFRASTRUCTURE MODULES TO REGISTER:
+You MUST import and register all these infrastructure modules in the "imports" array:
+${infraModules.map(item => `- Module: ${item.className} (Import from: '${item.importPath}')`).join('\n')}
+
 Functions list:
 ${JSON.stringify(state.functions_list, null, 2)}
 
@@ -123,9 +153,11 @@ STRICT RULES — VIOLATION IS UNACCEPTABLE:
    - Identify all generated controllers (*.controller.ts) → import their classes → add to the "controllers" array in @Module.
    - For all classes listed under "REQUIRED SERVICES AND PROXIES TO REGISTER", import them from their specified paths and register them in both the "providers" and "exports" arrays in @Module.
    - Identify all generated Sequelize models (*.model.ts or inside /entities/) → import their classes → add to a "SequelizeModule.forFeature([...])" declaration inside the @Module "imports" array.
+   - For all modules listed under "INFRASTRUCTURE MODULES TO REGISTER", import them from their specified paths and add them to the "imports" array in @Module.
 2. PRESERVE all global configurations, modules, providers, and filters from the ORIGINAL REFERENCE APP.MODULE.TS:
    - Keep ConfigModule.forRoot(...) with appConfig, databaseConfig, etc.
    - Keep SequelizeModule.forRootAsync(...) and databaseBuilder config.
+   - Keep ThrottlerModule.forRoot(...) intact.
    - Keep LoggerModule, CustomLoggerModule, and PinoLogger configuration details intact.
    - Keep AppController, AppService, and exception filters / interceptors in the providers array.
 3. Import ONLY the classes/files that actually exist in the "FILES BEING GENERATED IN THIS RUN" list. Do NOT import any feature module file (like transaction.module.ts or enrollment.module.ts).
