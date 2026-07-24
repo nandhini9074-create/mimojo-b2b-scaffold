@@ -61,14 +61,15 @@ RULES:
 4. For each function, extract the exact HTTP method (GET, POST, PUT, DELETE, PATCH) and exact route path string defined in the controller decorator (e.g. @Delete('/receipt/:id') has httpMethod 'DELETE' and routePath '/receipt/:id').
 5. Map each extracted function to the most relevant feature name from the Feature List below.
 6. The "type" field of each function MUST match the type of the feature it is mapped to (either "api" or "file").
-6. TRANSACTION CONTROLLER SCOPING RULES — look at the code snippets provided and apply these rules based on what is present:
-   - If the snippet is from a transaction controller AND the feature type is "api":
-       * Extract ONLY endpoints that are pure data query/read routes (GET requests that fetch transaction lists, summaries, details, dashboards).
-       * EXCLUDE any endpoints that handle file uploads, receipt deletions, or appeal submissions. These are identifiable by: HTTP DELETE on a receipt path, @Post routes using FileInterceptor or FilesInterceptor decorators, or route paths containing "receipt" or "appeal".
-   - If the snippet is from a transaction controller AND the feature type is "file":
-       * Extract ONLY endpoints that handle file/receipt operations: receipt image uploads (multipart/form-data), receipt deletions, and appeal submissions with attached files.
-       * EXCLUDE all pure GET query/read endpoints that fetch transaction lists, summaries, or dashboards.
-   - If the snippet is from transaction.controller.ts and feature type is "api": Extract ALL endpoints defined in it as "type": "api" — no filtering needed.
+7. TRANSACTION CONTROLLER SCOPING RULES (MANDATORY FOR ALL STEPS):
+   - If the controller is the V1 controller (transaction.controller.ts) AND the feature type is "api" (typically with VISA scheme or no scheme):
+       * Extract ALL endpoints defined in it. Display/use the full endpoints from the V1 controller.
+   - If the controller is a V2 controller (v2/transaction.controller.ts or transaction-v2.controller.ts) AND the feature scheme is "MC":
+       * Extract ONLY the API endpoints from the V2 controller. These are the pure data query/read routes (GET requests that fetch transaction lists, summaries, details, dashboards).
+       * EXCLUDE all file-related endpoints (such as file uploads, receipt deletions, or appeal submissions with files).
+   - If the controller is a V2 controller (v2/transaction.controller.ts or transaction-v2.controller.ts) AND the feature scheme is "MC and VISA":
+       * Extract ONLY the file-related endpoints from the V2 controller (such as receipt image uploads, receipt deletions, or appeal submissions with files).
+       * EXCLUDE all pure GET query/read endpoints (such as fetching transaction lists, summaries, or dashboards).
 
 
 Reference code snippets:

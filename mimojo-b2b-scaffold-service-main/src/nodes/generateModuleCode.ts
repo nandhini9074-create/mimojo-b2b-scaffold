@@ -132,6 +132,13 @@ STRICT RULES — VIOLATION IS UNACCEPTABLE:
 4. The generated module class name MUST be AppModule:
    export class AppModule {}
 5. Adjust relative import paths to match the directory structure of the generated files relative to src/app.module.ts.
+6. THROTTLER DEPENDENCY RULE — CRITICAL:
+   - If ThrottlerGuard appears anywhere in the providers array (either directly or as { provide: APP_GUARD, useClass: ThrottlerGuard }), you MUST also include ThrottlerModule.forRoot([{ ttl: <value>, limit: <value> }]) in the imports array.
+   - Copy the exact ThrottlerModule.forRoot(...) configuration from the ORIGINAL REFERENCE APP.MODULE.TS. If no configuration exists in the reference, use ThrottlerModule.forRoot([{ ttl: 60000, limit: 100 }]) as a safe default.
+   - NEVER register ThrottlerGuard as a provider without ThrottlerModule being imported — this causes an UnknownDependenciesException at runtime because ThrottlerGuard depends on THROTTLER:MODULE_OPTIONS which is only provided by ThrottlerModule.
+7. GENERAL GUARD/MODULE DEPENDENCY RULE:
+   - For ANY guard registered in providers that requires a module (e.g. JwtAuthGuard → JwtModule, ThrottlerGuard → ThrottlerModule), always verify and include the corresponding module in the imports array.
+   - Copy those module configurations verbatim from the ORIGINAL REFERENCE APP.MODULE.TS.
 
 ${feedback ? `Reviewer feedback to incorporate:\n${feedback}` : ""}
 ${renderRefinements(state)}

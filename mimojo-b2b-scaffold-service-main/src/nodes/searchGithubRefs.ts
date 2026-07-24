@@ -81,16 +81,14 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
     // Fetch per-feature files
     for (const feature of group.features) {
 
-      // Determine if this feature is an 'api' or 'file' flow (defaults to 'api')
       const featureType = feature.type || 'api';
 
-      // Get the list of template files for this specific type from the config
       let templatePaths = config.templates[featureType] ?? [];
 
 
       // Filter controllers based on feature type (API vs File Upload) and card scheme for Transaction group
       templatePaths = templatePaths.filter(p => {
-        // ── Transaction Group ──────────────────────────────────────────────
+
         const scheme = (feature as any).scheme as string | undefined;
         const isMcScheme = scheme === 'MC' || scheme === 'MC and VISA';
         const isV2 = featureType === 'file' || isMcScheme;
@@ -110,7 +108,6 @@ export async function searchGithubRefs(state: PipelineState): Promise<GithubRef[
           return isV2;
         }
 
-        // ── Enrollment Group ───────────────────────────────────────────────
         if (p.endsWith('enroll.controller.ts') || p.endsWith('unenroll.controller.ts')) {
           return featureType === 'api';
         }
@@ -194,21 +191,6 @@ async function fetchRepoTree(
   }
 }
 
-/**
- * Fetch raw file content from raw.githubusercontent.com.
- * Uses GITHUB_TOKEN for private repos if available.
- * Returns undefined on failure (private repo, 404, network error).
- */
-/**
- * Fetches raw file content from the GitHub API.
- *
- * Returns an object with two separate representations:
- * - `snippet`      : Content capped at 50 KB — safe to embed directly in LLM prompts.
- * - `full_content` : Complete, un-truncated raw content — used for verbatim file copy
- *                    during code generation so that large files are never silently cut off.
- *
- * Returns `undefined` on any network / auth / 404 failure.
- */
 async function fetchRawContent(
   parsed: ReturnType<typeof parseGithubUrl>,
 ): Promise<{ snippet: string; full_content: string } | undefined> {
