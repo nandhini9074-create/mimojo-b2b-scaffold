@@ -62,13 +62,14 @@ RULES:
 5. Map each extracted function to the most relevant feature name from the Feature List below.
 6. The "type" field of each function MUST match the type of the feature it is mapped to (either "api" or "file").
 6. TRANSACTION CONTROLLER SCOPING RULES — look at the code snippets provided and apply these rules based on what is present:
-   - If the snippet is from a transaction controller AND the feature type is "api":
-       * Extract ONLY endpoints that are pure data query/read routes (GET requests that fetch transaction lists, summaries, details, dashboards).
-       * EXCLUDE any endpoints that handle file uploads, receipt deletions, or appeal submissions. These are identifiable by: HTTP DELETE on a receipt path, @Post routes using FileInterceptor or FilesInterceptor decorators, or route paths containing "receipt" or "appeal".
-   - If the snippet is from a transaction controller AND the feature type is "file":
-       * Extract ONLY endpoints that handle file/receipt operations: receipt image uploads (multipart/form-data), receipt deletions, and appeal submissions with attached files.
-       * EXCLUDE all pure GET query/read endpoints that fetch transaction lists, summaries, or dashboards.
-   - If the snippet is from transaction.controller.ts and feature type is "api": Extract ALL endpoints defined in it as "type": "api" — no filtering needed.
+   - If the feature type is "api":
+       * Extract ONLY API endpoints, preferably from the V2 controller (e.g., transaction-v2.controller.ts) if it exists.
+       * EXCLUDE ALL file-related endpoints (e.g., receipt uploads, receipt deletions, appeals, FileInterceptor).
+       * NEVER output a function with "type": "file" when processing an "api" feature.
+   - If the feature type is "file":
+       * Extract ONLY endpoints that handle file/receipt operations (e.g., receipt image uploads, deletions, and appeal submissions).
+       * EXCLUDE all pure API query/read endpoints (e.g., get transaction lists, summaries, or dashboards).
+       * NEVER output a function with "type": "api" when processing a "file" feature.
 
 
 Reference code snippets:

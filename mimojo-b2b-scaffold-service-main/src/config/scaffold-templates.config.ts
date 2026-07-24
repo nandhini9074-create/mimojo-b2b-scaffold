@@ -21,11 +21,11 @@ export interface TemplateConfig {
   branch: string;
   /** Mapping of feature type → reference file paths in the repo */
   templates: {
-    /** Files shared across all feature types — fetched once */
-    shared: string[];
-    /** API-specific reference files */
+    /** Verbatim-copy files — infrastructure that never changes per feature */
+    infrastructure: string[];
+    /** API-specific feature reference files — LLM uses as structural examples */
     api: string[];
-    /** File/Batch-specific reference files */
+    /** File/Batch-specific feature reference files — LLM uses as structural examples */
     file: string[];
   };
 }
@@ -36,7 +36,7 @@ export const scaffoldTemplateRegistry: Record<TemplateName, TemplateConfig> = {
     repoUrl: `https://github.com/${process.env.GITHUB_OWNER_ENROLLMENT}/mimojo-enrollment-template-service-main`,
     branch: 'main',
     templates: {
-      shared: [
+      infrastructure: [
         // Root-level runnable files (required for npm install & npm run start:dev)
         'package.json',
         'tsconfig.json',
@@ -113,7 +113,7 @@ export const scaffoldTemplateRegistry: Record<TemplateName, TemplateConfig> = {
     repoUrl: `https://github.com/${process.env.GITHUB_OWNER_TRANSACTION}/mimojo-transaction-template-service`,
     branch: 'main',
     templates: {
-      shared: [
+      infrastructure: [
         // Root-level runnable files (required for npm install & npm run start:dev)
         'package.json',
         'tsconfig.json',
